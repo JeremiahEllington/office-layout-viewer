@@ -3291,11 +3291,12 @@ function showReportCard(type, id) {
   clearTimeout(rcHideTimer);
   const floor = S.floors[S.currentFloor];
 
-  // Find item
+  // Find item — pcs/phones share the desks array
   let item = null;
   let layerDef = null;
-  if (floor.items[type]) {
-    item = floor.items[type].find(x => x.id === id);
+  const lookupKey = (type === 'pcs' || type === 'phones') ? 'desks' : type;
+  if (floor.items[lookupKey]) {
+    item = floor.items[lookupKey].find(x => x.id === id);
   }
   // Check custom layers
   if (!item) {
@@ -3463,25 +3464,36 @@ window.copyHash = function copyHash(hash) {
 };
 
 function bindHoverListeners() {
-  // Document-level delegation — works regardless of pointer-events on parent divs.
-  // Called once from init(), not on every render().
-  document.addEventListener('mouseover', (e) => {
-    const g = e.target.closest('.ov-item[data-id]');
-    if (!g) return;
-    clearTimeout(rcHideTimer);
-    showReportCard(g.dataset.type, g.dataset.id);
-  });
+  // Use elementsFromPoint on mousemove — bypasses all CSS pointer-events
+  // inheritance issues with SVG-in-div stacking and 3D transforms.
+  let currentHoverKey = null;
 
-  document.addEventListener('mouseout', (e) => {
-    const g = e.target.closest('.ov-item[data-id]');
-    if (!g) return;
-    // Only hide when leaving the item entirely, not when moving between children
-    if (!g.contains(e.relatedTarget)) {
-      hideReportCard();
+  const tiltEl = document.getElementById('tilt');
+  tiltEl.addEventListener('mousemove', (e) => {
+    const els = document.elementsFromPoint(e.clientX, e.clientY);
+    const g = els.find(el => el.matches && el.matches('.ov-item[data-id]'));
+
+    if (g) {
+      const key = g.dataset.type + '|' + g.dataset.id;
+      if (key !== currentHoverKey) {
+        currentHoverKey = key;
+        clearTimeout(rcHideTimer);
+        showReportCard(g.dataset.type, g.dataset.id);
+      }
+    } else {
+      if (currentHoverKey !== null) {
+        currentHoverKey = null;
+        hideReportCard();
+      }
     }
   });
 
-  // Keep report card visible when mouse enters it
+  tiltEl.addEventListener('mouseleave', () => {
+    currentHoverKey = null;
+    hideReportCard();
+  });
+
+  // Keep report card visible when mouse is over it
   const rc = document.getElementById('report-card');
   if (rc) {
     rc.onmouseenter = () => clearTimeout(rcHideTimer);
