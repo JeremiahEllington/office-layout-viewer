@@ -1,0 +1,27 @@
+{
+  "port": 3000,
+  "lansweeper": {
+    "apiUrl": "https://api.lansweeper.com/api/v2/graphql",
+    "token": "YOUR_PERSONAL_ACCESS_TOKEN_HERE",
+    "siteId": "YOUR_SITE_ID_HERE"
+  },
+  "sync": {
+    "pageSize": 200,
+    "cacheSeconds": 300
+  },
+  "typeMapping": {
+    "windows": "pc",
+    "linux": "pc",
+    "mac os x": "pc",
+    "apple mac": "pc",
+    "chromebook": "pc",
+    "printer": "printer",
+    "network printer": "printer",
+    "ip phone": "phone",
+    "voip phone": "phone",
+    "cisco ip phone": "phone",
+    "network camera": "camera",
+    "ip camera": "camera",
+    "webcam": "camera"
+  }
+}

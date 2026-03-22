@@ -1,0 +1,2623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Building Directory — Interactive Floor Plan</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg:           #020912;
+  --panel:        #040d1e;
+  --panel-border: #0a2040;
+  --cyan:         #00c8ff;
+  --cyan-glow:    rgba(0,200,255,0.15);
+  --cyan-dim:     #0066aa;
+  --text:         #e8f4ff;
+  --text-dim:     #4a7090;
+  --text-muted:   #1a4060;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Sidebar ─────────────────────────────────────────── */
+#sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: var(--panel);
+  border-right: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 16px;
+  gap: 4px;
+  z-index: 10;
+}
+
+.sb-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--cyan);
+  padding: 20px 16px 14px;
+  text-shadow: 0 0 12px rgba(0,200,255,0.6);
+  position: relative;
+}
+.sb-title::after {
+  content: '';
+  display: block;
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--cyan) 0%, transparent 100%);
+  box-shadow: 0 0 8px rgba(0,200,255,0.4);
+}
+
+.sb-section {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 12px 16px 4px;
+}
+
+/* ── Filter Buttons ──────────────────────────────────── */
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  height: 58px;
+  min-height: 56px;
+  border-radius: 0;
+  border: none;
+  border-left: 4px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: background .18s, border-color .2s, color .18s, box-shadow .25s, opacity .2s;
+  user-select: none;
+  width: 100%;
+  text-align: left;
+  opacity: 0.45;
+  position: relative;
+}
+
+.filter-btn:hover {
+  background: rgba(0,200,255,0.04);
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.filter-btn.active {
+  border-left-color: var(--c);
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 10%, transparent);
+  opacity: 1;
+  --filter-glow: color-mix(in srgb, var(--c) 40%, transparent);
+  animation: filter-pulse 2.5s ease-in-out infinite;
+}
+
+/* ── Filter Icon ─────────────────────────────────────── */
+.ficon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--c) 14%, #050e20);
+  border: 1px solid color-mix(in srgb, var(--c) 28%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--c);
+  opacity: 0.45;
+  transition: opacity .18s, box-shadow .2s;
+}
+.filter-btn.active .ficon {
+  opacity: 1;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c) 45%, transparent);
+}
+.ficon svg { width: 16px; height: 16px; fill: currentColor; }
+
+.filter-btn-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  flex: 1;
+}
+
+.fbadge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+  color: var(--c);
+  border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+  padding: 2px 8px;
+  border-radius: 20px;
+  opacity: 0.45;
+  transition: opacity .18s;
+  letter-spacing: 0.5px;
+}
+.filter-btn.active .fbadge { opacity: 1; }
+
+/* ── Clear button ────────────────────────────────────── */
+.sb-clear {
+  margin: auto 12px 0;
+  padding: 11px 16px;
+  border: 1px solid var(--cyan-dim);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s, box-shadow .15s;
+}
+.sb-clear:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: var(--cyan-glow);
+  box-shadow: 0 0 12px rgba(0,200,255,0.2);
+}
+
+/* ── Map Area ────────────────────────────────────────── */
+#map-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Topbar ──────────────────────────────────────────── */
+#topbar {
+  height: 56px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--cyan);
+  box-shadow: 0 1px 0 rgba(0,200,255,0.3);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 10px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+/* ── Kiosk Branding ──────────────────────────────────── */
+#kiosk-brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 6px;
+  line-height: 1.15;
+}
+#brand-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--cyan);
+  text-shadow: 0 0 16px rgba(0,200,255,0.7), 0 0 32px rgba(0,200,255,0.3);
+  white-space: nowrap;
+}
+#brand-sub {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.topbar-sep {
+  width: 1px;
+  height: 28px;
+  background: var(--panel-border);
+  flex-shrink: 0;
+}
+
+/* ── Floor Tabs ──────────────────────────────────────── */
+#floor-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+  scrollbar-width: none;
+}
+#floor-tabs::-webkit-scrollbar { display: none; }
+
+.floor-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--panel-border);
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background .15s, border-color .2s, color .15s, box-shadow .2s;
+  user-select: none;
+}
+.floor-tab:hover {
+  background: rgba(0,200,255,0.06);
+  color: var(--text);
+  border-color: var(--cyan-dim);
+}
+.floor-tab.active {
+  border-color: var(--cyan);
+  color: var(--bg);
+  background: var(--cyan);
+  box-shadow: 0 0 14px rgba(0,200,255,0.45), 0 2px 8px rgba(0,0,0,0.5);
+  text-shadow: none;
+}
+.floor-tab.active .floor-tab-del { color: var(--bg); opacity: 0.6; }
+.floor-tab-del {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 0 0 2px;
+  opacity: 0.5;
+  transition: opacity .15s, color .15s;
+}
+.floor-tab-del:hover { opacity: 1; color: #f05888; }
+
+.topbar-add-floor {
+  background: transparent;
+  border: 1px dashed var(--cyan-dim);
+  border-radius: 20px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.topbar-add-floor:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: var(--cyan-glow);
+}
+
+/* ── Topbar action buttons ───────────────────────────── */
+.tb-btn {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background .15s, border-color .2s, color .15s, box-shadow .15s;
+}
+.tb-btn:hover {
+  background: rgba(0,200,255,0.06);
+  color: var(--cyan);
+  border-color: var(--cyan-dim);
+}
+.tb-btn.active {
+  border-color: #e8b840;
+  color: #e8b840;
+  background: rgba(232,184,64,.08);
+  box-shadow: 0 0 10px rgba(232,184,64,0.2);
+}
+.tb-btn.edit-active {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: var(--cyan-glow);
+  box-shadow: 0 0 12px rgba(0,200,255,0.3);
+}
+
+.tb-import-wrap { position: relative; flex-shrink: 0; }
+.tb-import-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: #050f22;
+  border: 1px solid var(--panel-border);
+  border-top: 1px solid var(--cyan);
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 200;
+  min-width: 150px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.8), 0 0 0 1px rgba(0,200,255,0.1);
+}
+.tb-import-dropdown.open { display: block; }
+.tb-import-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: left;
+  transition: background .12s, color .12s;
+}
+.tb-import-dropdown button:hover {
+  background: rgba(0,200,255,0.07);
+  color: var(--cyan);
+}
+
+/* ── Image opacity slider ────────────────────────────── */
+#img-slider-wrap {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+#img-slider-wrap.show { display: flex; }
+#img-opacity-slider {
+  width: 70px;
+  accent-color: var(--cyan);
+}
+
+/* ── Edit Toolbar ────────────────────────────────────── */
+#edit-toolbar {
+  display: none;
+  height: 44px;
+  background: #030a18;
+  border-bottom: 1px solid var(--panel-border);
+  border-top: 1px solid var(--cyan);
+  align-items: center;
+  padding: 0 16px;
+  gap: 6px;
+  flex-shrink: 0;
+  box-shadow: 0 -1px 0 rgba(0,200,255,0.15) inset;
+}
+#edit-toolbar.show { display: flex; }
+
+.et-btn {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  height: 40px;
+  transition: background .12s, border-color .15s, color .12s, box-shadow .15s;
+  white-space: nowrap;
+}
+.et-btn:hover {
+  background: rgba(0,200,255,0.06);
+  color: var(--cyan);
+  border-color: var(--cyan-dim);
+}
+.et-btn.active {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  color: var(--bg);
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(0,200,255,0.4);
+}
+
+.et-hint {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
+.et-exit {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid rgba(240,88,136,0.35);
+  border-radius: 6px;
+  color: rgba(240,88,136,0.65);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  height: 40px;
+  transition: background .12s, border-color .15s, color .12s, box-shadow .15s;
+}
+.et-exit:hover {
+  background: rgba(240,88,136,.12);
+  border-color: #f05888;
+  color: #f05888;
+  box-shadow: 0 0 10px rgba(240,88,136,0.2);
+}
+
+/* ── Canvas ──────────────────────────────────────────── */
+#canvas {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 50px 40px 52px;
+  background-image:
+    linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px),
+    radial-gradient(ellipse 80% 60% at 50% 30%, #071428 0%, #020912 100%);
+  background-size: 40px 40px, 40px 40px, 100% 100%;
+  overflow: auto;
+  position: relative;
+  animation: scanline 8s linear infinite;
+}
+
+/* ── 3/4 Perspective ─────────────────────────────────── */
+#persp {
+  perspective: 1800px;
+  perspective-origin: 50% -10%;
+  flex-shrink: 0;
+}
+
+#tilt {
+  transform: rotateX(40deg);
+  transform-origin: center top;
+  transform-style: preserve-3d;
+  transition: transform .5s cubic-bezier(.22,1,.36,1);
+}
+
+/* ── Map Stack ───────────────────────────────────────── */
+#stack {
+  position: relative;
+  width: 980px;
+  height: 660px;
+  box-shadow:
+    0 0 0 1px rgba(0,200,255,0.15),
+    0 0 40px rgba(0,200,255,0.08),
+    0 80px 160px rgba(0,0,0,0.95);
+  overflow: hidden;
+}
+
+#stack > * {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Overlay Layer ───────────────────────────────────── */
+.overlay {
+  pointer-events: none;
+  transform-origin: top center;
+  transform: translateY(-108%) scaleY(.82);
+  opacity: 0;
+  transition:
+    transform .58s cubic-bezier(.22,1,.36,1),
+    opacity .4s ease;
+  overflow: visible;
+}
+
+.overlay.on {
+  transform: translateY(0) scaleY(1);
+  opacity: 1;
+}
+
+/* Cyan sweep flash when layer activates */
+.overlay.on::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  background: linear-gradient(90deg, transparent, rgba(0,200,255,0.9), transparent);
+  animation: spine-flash 0.7s ease-out forwards;
+  pointer-events: none;
+}
+
+/* ── Edit layer ──────────────────────────────────────── */
+#ov-edit {
+  pointer-events: none;
+  z-index: 50;
+}
+#ov-edit.active {
+  pointer-events: all;
+  cursor: default;
+}
+#ov-edit.placing {
+  cursor: crosshair;
+}
+
+/* ── Status Bar ──────────────────────────────────────── */
+#status-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: rgba(0,10,24,0.9);
+  border-top: 1px solid var(--panel-border);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 20;
+  backdrop-filter: blur(4px);
+}
+
+#status-time {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 80px;
+}
+
+#status-hint {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  animation: hint-fade 3s ease-in-out infinite;
+  text-align: center;
+}
+
+#status-layers {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  min-width: 130px;
+  text-align: right;
+  transition: color .3s;
+}
+#status-layers.active {
+  color: var(--cyan);
+  text-shadow: 0 0 10px rgba(0,200,255,0.5);
+}
+
+/* ── Add Form ────────────────────────────────────────── */
+#add-form {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  background: #050d20;
+  border: 1px solid var(--cyan);
+  border-radius: 12px;
+  padding: 18px;
+  min-width: 220px;
+  box-shadow:
+    0 0 0 1px rgba(0,200,255,0.1),
+    0 8px 40px rgba(0,0,0,0.85),
+    0 0 20px rgba(0,200,255,0.1);
+}
+#add-form.show { display: block; }
+#add-form h4 {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 14px;
+  text-shadow: 0 0 10px rgba(0,200,255,0.4);
+}
+.af-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.af-field label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.af-field input, .af-field select {
+  background: #02070f;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.af-field input:focus, .af-field select:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(0,200,255,0.12);
+}
+.af-field-row {
+  display: flex;
+  gap: 8px;
+}
+.af-field-row .af-field { flex: 1; }
+.af-check-row {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.af-check-row label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.af-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.af-add {
+  flex: 1;
+  padding: 9px;
+  background: var(--cyan);
+  border: none;
+  border-radius: 7px;
+  color: var(--bg);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  transition: box-shadow .15s, filter .15s;
+}
+.af-add:hover {
+  box-shadow: 0 0 16px rgba(0,200,255,0.5);
+  filter: brightness(1.1);
+}
+.af-cancel {
+  padding: 9px 14px;
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  transition: background .12s, border-color .15s, color .12s;
+}
+.af-cancel:hover {
+  background: rgba(0,200,255,0.05);
+  border-color: var(--cyan-dim);
+  color: var(--text);
+}
+
+/* ── Import Modal ────────────────────────────────────── */
+#import-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,5,16,0.85);
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  backdrop-filter: blur(4px);
+}
+#import-modal.show { display: flex; }
+.im-box {
+  background: #040c1e;
+  border: 1px solid var(--panel-border);
+  border-top: 2px solid var(--cyan);
+  border-radius: 12px;
+  padding: 24px;
+  width: 460px;
+  max-width: 95vw;
+  box-shadow:
+    0 0 0 1px rgba(0,200,255,0.08),
+    0 24px 80px rgba(0,0,0,0.9),
+    0 0 40px rgba(0,200,255,0.07);
+}
+.im-box h3 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 18px;
+  text-shadow: 0 0 12px rgba(0,200,255,0.4);
+}
+.im-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.im-tab {
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--panel-border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: all .15s;
+}
+.im-tab.active {
+  border-color: var(--cyan);
+  color: var(--bg);
+  background: var(--cyan);
+  box-shadow: 0 0 12px rgba(0,200,255,0.35);
+}
+.im-panel { display: none; }
+.im-panel.active { display: block; }
+.im-panel textarea {
+  width: 100%;
+  height: 130px;
+  background: #020812;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 11px;
+  font-family: monospace;
+  padding: 10px;
+  resize: vertical;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.im-panel textarea:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(0,200,255,0.1);
+}
+.im-panel p {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  line-height: 1.6;
+  letter-spacing: 0.5px;
+}
+.im-file-input {
+  display: none;
+}
+.im-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.im-btn {
+  flex: 1;
+  padding: 9px;
+  background: var(--cyan);
+  border: none;
+  border-radius: 7px;
+  color: var(--bg);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: box-shadow .15s, filter .15s;
+}
+.im-btn:hover {
+  box-shadow: 0 0 16px rgba(0,200,255,0.45);
+  filter: brightness(1.1);
+}
+.im-btn-file {
+  padding: 9px 16px;
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  transition: background .12s, border-color .15s, color .12s;
+}
+.im-btn-file:hover {
+  background: rgba(0,200,255,0.05);
+  border-color: var(--cyan-dim);
+  color: var(--text);
+}
+.im-cancel {
+  padding: 9px 16px;
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  transition: background .12s, border-color .15s, color .12s;
+}
+.im-cancel:hover {
+  background: rgba(0,200,255,0.05);
+  border-color: var(--cyan-dim);
+  color: var(--text);
+}
+.im-err {
+  font-size: 10px;
+  color: #f05888;
+  margin-top: 10px;
+  min-height: 16px;
+  letter-spacing: 0.5px;
+}
+
+/* ── Lansweeper Sync Button ──────────────────────────── */
+#ls-sync-btn { border-color: var(--cyan); color: var(--cyan); }
+#ls-sync-btn.disconnected { border-color: #f05888; color: #f05888; opacity: 0.6; cursor: not-allowed; }
+#ls-sync-btn.syncing #ls-sync-icon { display: inline-block; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#ls-sync-status { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
+
+/* ── Staging Dock ────────────────────────────────────── */
+#staging-dock {
+  display: none;
+  background: rgba(0,10,24,0.95);
+  border-top: 1px solid var(--cyan);
+  box-shadow: 0 -4px 20px rgba(0,200,255,0.1);
+  padding: 8px 16px;
+  flex-shrink: 0;
+}
+#staging-dock.show { display: block; }
+#staging-dock-header {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 9px; font-weight: 700; letter-spacing: 2px;
+  color: var(--cyan); margin-bottom: 8px;
+}
+#staging-count {
+  background: var(--cyan); color: #000;
+  padding: 1px 6px; border-radius: 10px; font-size: 9px;
+}
+.staging-hint { color: var(--text-muted); margin-left: auto; }
+#staging-items { display: flex; gap: 8px; flex-wrap: wrap; }
+.staging-chip {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,200,255,0.06);
+  border: 1px solid rgba(0,200,255,0.2);
+  border-radius: 6px; padding: 5px 10px;
+  font-size: 11px; color: var(--text);
+}
+.staging-chip .chip-type { font-size: 9px; color: var(--text-dim); }
+.staging-chip .chip-place {
+  background: var(--cyan); color: #000;
+  border: none; border-radius: 4px;
+  font-size: 9px; font-weight: 700; padding: 2px 7px;
+  cursor: pointer; letter-spacing: 1px;
+}
+
+/* ── Keyframe Animations ─────────────────────────────── */
+
+@keyframes filter-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--filter-glow, transparent); }
+  50%       { box-shadow: 0 0 20px var(--filter-glow, transparent); }
+}
+
+@keyframes spine-flash {
+  0%   { opacity: 1; width: 100%; }
+  100% { opacity: 0; width: 0%; }
+}
+
+@keyframes scanline {
+  0%   { background-position: 0 0, 0 0, center; }
+  100% { background-position: 0 40px, 0 40px, center; }
+}
+
+@keyframes hint-fade {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.8; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(40px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+  <div class="sb-title">Overlay Layers</div>
+  <div id="filter-list"></div>
+  <button class="sb-clear" id="clear-btn">Clear All</button>
+</div>
+
+<div id="map-area">
+  <!-- Topbar -->
+  <div id="topbar">
+    <div id="kiosk-brand">
+      <div id="brand-title">Building Directory</div>
+      <div id="brand-sub">Interactive Floor Plan</div>
+    </div>
+    <div class="topbar-sep"></div>
+    <div id="floor-tabs"></div>
+    <button class="topbar-add-floor" id="add-floor-btn" title="Add Floor">+</button>
+    <div class="topbar-sep"></div>
+    <div id="img-slider-wrap">
+      <span>Opacity</span>
+      <input type="range" id="img-opacity-slider" min="0" max="1" step="0.05" value="0.85">
+    </div>
+    <button class="tb-btn" id="upload-map-btn">Upload Map</button>
+    <div class="tb-import-wrap">
+      <button class="tb-btn" id="import-btn">Import ▾</button>
+      <div class="tb-import-dropdown" id="import-dropdown">
+        <button id="import-json-btn">JSON</button>
+        <button id="import-csv-btn">CSV</button>
+        <button id="csv-template-btn">CSV Template</button>
+      </div>
+    </div>
+    <button class="tb-btn" id="export-btn">Export JSON</button>
+    <button class="tb-btn" id="ls-sync-btn" title="Sync assets from Lansweeper">
+      <span id="ls-sync-icon">⟳</span> LANSWEEPER
+    </button>
+    <span id="ls-sync-status"></span>
+    <button class="tb-btn" id="edit-mode-btn">Edit Mode</button>
+  </div>
+
+  <!-- Edit Toolbar -->
+  <div id="edit-toolbar">
+    <button class="et-btn" data-place="desks">+ Desk</button>
+    <button class="et-btn" data-place="printers">+ Printer</button>
+    <button class="et-btn" data-place="network">+ Network Drop</button>
+    <button class="et-btn" data-place="cameras">+ Camera</button>
+    <span class="et-hint">Drag items · Right-click to delete</span>
+    <button class="et-exit">× Exit Edit</button>
+  </div>
+
+  <div id="canvas">
+    <div id="persp">
+      <div id="tilt">
+        <div id="stack"></div>
+      </div>
+    </div>
+    <div id="status-bar">
+      <span id="status-time"></span>
+      <span id="status-hint">Touch a Layer to Activate  ·  Drag Items in Edit Mode</span>
+      <span id="status-layers">No Layers Active</span>
+    </div>
+  </div>
+
+  <!-- Staging Dock -->
+  <div id="staging-dock">
+    <div id="staging-dock-header">
+      <span>UNPOSITIONED ASSETS</span>
+      <span id="staging-count"></span>
+      <span class="staging-hint">ENTER EDIT MODE TO PLACE ON MAP</span>
+    </div>
+    <div id="staging-items"></div>
+  </div>
+</div>
+
+<!-- Hidden file inputs -->
+<input type="file" id="upload-map-input" accept=".png,.jpg,.jpeg,.svg" style="display:none">
+<input type="file" id="import-json-input" accept=".json" style="display:none">
+<input type="file" id="import-csv-input" accept=".csv" style="display:none">
+
+<!-- Add Form -->
+<div id="add-form"></div>
+
+<!-- Import Modal -->
+<div id="import-modal">
+  <div class="im-box">
+    <h3 id="im-title">Import</h3>
+    <div class="im-tabs">
+      <button class="im-tab active" data-panel="paste">Paste</button>
+      <button class="im-tab" data-panel="file">File</button>
+    </div>
+    <div id="im-panel-paste" class="im-panel active"></div>
+    <div id="im-panel-file" class="im-panel"></div>
+    <div class="im-err" id="im-err"></div>
+    <div class="im-row" id="im-actions"></div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container" style="position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px;align-items:flex-end;"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// FILTER DEFINITIONS
+// ═══════════════════════════════════════════════════════
+
+const FILTERS = [
+  {
+    id: 'desks', label: 'User Desks', color: '#e8b840',
+    icon: `<svg viewBox="0 0 16 16"><rect x="1" y="5" width="14" height="7" rx="1.5"/><rect x="1" y="3" width="14" height="3" rx="1"/><rect x="3" y="11" width="2" height="3" rx="1"/><rect x="11" y="11" width="2" height="3" rx="1"/></svg>`
+  },
+  {
+    id: 'pcs', label: 'PCs / Workstations', color: '#48a8f0',
+    icon: `<svg viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="9" rx="1.5"/><rect x="5" y="11" width="6" height="2"/><rect x="3" y="13" width="10" height="1" rx=".5"/></svg>`
+  },
+  {
+    id: 'phones', label: 'Desk Phones', color: '#50d890',
+    icon: `<svg viewBox="0 0 16 16"><rect x="4" y="1" width="8" height="14" rx="2"/><circle cx="8" cy="12" r="1.2"/><rect x="6" y="3" width="4" height="1.5" rx=".5"/></svg>`
+  },
+  {
+    id: 'printers', label: 'Printers', color: '#f07850',
+    icon: `<svg viewBox="0 0 16 16"><rect x="2" y="5" width="12" height="7" rx="1.5"/><rect x="4" y="1" width="8" height="5"/><rect x="4" y="9" width="8" height="5" rx="1"/><circle cx="12" cy="8" r="1"/></svg>`
+  },
+  {
+    id: 'network', label: 'Network Drops', color: '#b068f0',
+    icon: `<svg viewBox="0 0 16 16"><circle cx="8" cy="3" r="2"/><circle cx="3" cy="13" r="2"/><circle cx="13" cy="13" r="2"/><line x1="8" y1="5" x2="3" y2="11" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="8" y1="5" x2="13" y2="11" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="3" y1="11" x2="13" y2="11" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>`
+  },
+  {
+    id: 'cameras', label: 'Security Cameras', color: '#f05888',
+    icon: `<svg viewBox="0 0 16 16"><ellipse cx="7" cy="8" rx="4" ry="4"/><ellipse cx="7" cy="8" rx="1.8" ry="1.8"/><path d="M11 5.5l3.5-2.5v8L11 8.5z"/><rect x="1.5" y="7" width="3" height="2" rx="1"/></svg>`
+  }
+];
+
+// ═══════════════════════════════════════════════════════
+// SAMPLE DATA (Floor 1)
+// ═══════════════════════════════════════════════════════
+
+const COL_X = [22, 118, 214, 370, 466, 562];
+const ROW_Y  = [218, 320, 422, 524];
+
+const NAMES = [
+  'Alice Johnson','Bob Smith','Carol White','David Brown',
+  'Eve Davis','Frank Miller','Grace Wilson','Henry Moore',
+  'Iris Taylor','Jake Anderson','Karen Thomas','Liam Jackson',
+  'Mia Harris','Noah Martin','Olivia Garcia','Peter Martinez',
+  'Quinn Robinson','Rachel Clark','Sam Rodriguez','Tina Lewis',
+  'Uma Lee','Victor Walker','Wendy Hall','Xavier Allen'
+];
+
+function buildSampleDesks() {
+  const arr = [];
+  let di = 0;
+  for (const y of ROW_Y) {
+    for (const x of COL_X) {
+      arr.push({
+        id: generateId(),
+        x, y,
+        name: NAMES[di],
+        pc: `WS-${String(di+1).padStart(3,'0')}`,
+        ext: `${101 + di}`,
+        hasPC: di !== 7 && di !== 15,
+        hasPhone: di % 6 !== 4,
+      });
+      di++;
+    }
+  }
+  return arr;
+}
+
+function buildSamplePrinters() {
+  return [
+    { id: generateId(), x: 300, y: 265, label: 'PRN-001', model: 'HP LaserJet Pro' },
+    { id: generateId(), x: 300, y: 465, label: 'PRN-002', model: 'HP LaserJet Pro' },
+    { id: generateId(), x: 630, y: 265, label: 'PRN-003', model: 'Xerox C235'      },
+    { id: generateId(), x: 630, y: 465, label: 'PRN-004', model: 'Xerox C235'      },
+  ];
+}
+
+function buildSampleNetwork(desks) {
+  const arr = [];
+  for (let x = 60; x <= 650; x += 110) arr.push({ id: generateId(), x, y: 200, t: 'wall' });
+  for (let x = 60; x <= 650; x += 110) arr.push({ id: generateId(), x, y: 648, t: 'wall' });
+  for (const d of desks)                arr.push({ id: generateId(), x: d.x + 41, y: d.y + 8, t: 'floor' });
+  for (let i = 0; i < 8; i++)           arr.push({ id: generateId(), x: 718+(i%4)*52, y: 28+Math.floor(i/4)*55, t: 'patch' });
+  return arr;
+}
+
+function buildSampleCameras() {
+  return [
+    { id: generateId(), x: 16,  y: 18  },
+    { id: generateId(), x: 660, y: 18  },
+    { id: generateId(), x: 16,  y: 648 },
+    { id: generateId(), x: 660, y: 648 },
+    { id: generateId(), x: 338, y: 18  },
+    { id: generateId(), x: 338, y: 648 },
+    { id: generateId(), x: 16,  y: 390 },
+    { id: generateId(), x: 660, y: 390 },
+  ];
+}
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+
+function makeFloor1() {
+  const desks = buildSampleDesks();
+  return {
+    id: 'floor-1',
+    name: 'Floor 1 — Main Office',
+    image: null,
+    imageOpacity: 0.85,
+    items: {
+      desks,
+      printers: buildSamplePrinters(),
+      network:  buildSampleNetwork(desks),
+      cameras:  buildSampleCameras(),
+    }
+  };
+}
+
+function makeEmptyFloor(name) {
+  return {
+    id: generateId(),
+    name,
+    image: null,
+    imageOpacity: 0.85,
+    items: { desks: [], printers: [], network: [], cameras: [] }
+  };
+}
+
+let S = null;
+
+function defaultState() {
+  return {
+    floors: [ makeFloor1(), makeEmptyFloor('Floor 2') ],
+    currentFloor: 0,
+    filters: [],
+    editMode: false,
+    placingType: null,
+    lsLastSync: null,
+    lsConnected: false,
+  };
+}
+
+function saveState() {
+  try { localStorage.setItem('office-layout-v1', JSON.stringify(S)); } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('office-layout-v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Validate basic structure
+      if (parsed && Array.isArray(parsed.floors) && parsed.floors.length > 0) {
+        parsed.editMode = false;
+        parsed.placingType = null;
+        // Ensure LS fields exist
+        if (parsed.lsLastSync === undefined) parsed.lsLastSync = null;
+        if (parsed.lsConnected === undefined) parsed.lsConnected = false;
+        return parsed;
+      }
+    }
+  } catch(e) {}
+  return null;
+}
+
+// Persistent lsPositions store (keyed by lsId → {x, y})
+function loadLsPositions() {
+  try {
+    const raw = localStorage.getItem('ls-positions-v1');
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+
+function saveLsPositions(positions) {
+  try { localStorage.setItem('ls-positions-v1', JSON.stringify(positions)); } catch(e) {}
+}
+
+function savePosition(lsId, x, y) {
+  if (!lsId) return;
+  const positions = loadLsPositions();
+  positions[lsId] = { x, y };
+  saveLsPositions(positions);
+}
+
+// ═══════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.style.cssText = `
+    background: ${type === 'error' ? '#1a0810' : type === 'success' ? '#081a10' : '#080e1c'};
+    border: 1px solid ${type === 'error' ? '#f05888' : type === 'success' ? '#50d890' : 'var(--cyan)'};
+    color: ${type === 'error' ? '#f05888' : type === 'success' ? '#50d890' : 'var(--text)'};
+    padding: 10px 16px; border-radius: 8px; font-size: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    animation: slideInRight 0.3s ease;
+    max-width: 320px; letter-spacing: 0.5px;
+  `;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+// ═══════════════════════════════════════════════════════
+// LANSWEEPER INTEGRATION
+// ═══════════════════════════════════════════════════════
+
+function checkLsStatus() {
+  const btn = document.getElementById('ls-sync-btn');
+  fetch('/api/status')
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        S.lsConnected = true;
+        btn.classList.remove('disconnected');
+        btn.title = data.configured
+          ? 'Sync assets from Lansweeper'
+          : 'Server reachable but Lansweeper not configured — edit lansweeper.config.json';
+      } else {
+        S.lsConnected = false;
+        btn.classList.add('disconnected');
+        btn.title = 'Lansweeper not configured';
+      }
+    })
+    .catch(() => {
+      S.lsConnected = false;
+      btn.classList.add('disconnected');
+      btn.title = 'Start server to enable Lansweeper sync';
+    });
+}
+
+function syncLansweeper() {
+  if (!S.lsConnected) {
+    toast('Server not reachable. Run: node server.js', 'error');
+    return;
+  }
+  const btn      = document.getElementById('ls-sync-btn');
+  const statusEl = document.getElementById('ls-sync-status');
+  btn.classList.add('syncing');
+  statusEl.textContent = 'Syncing...';
+
+  fetch('/api/sync')
+    .then(r => r.json())
+    .then(data => {
+      btn.classList.remove('syncing');
+      if (!data.ok) {
+        statusEl.textContent = 'Error';
+        toast('Sync failed: ' + (data.error || 'unknown error'), 'error');
+        return;
+      }
+      S.lsLastSync = data.synced;
+      const ts = new Date(data.synced).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      statusEl.textContent = 'Last: ' + ts;
+      const counts = mergeAssets(data);
+      saveState();
+      render();
+      toast(
+        `Sync complete — ${counts.updated} updated, ${counts.added} added, ${counts.skipped} skipped`,
+        'success'
+      );
+    })
+    .catch(err => {
+      btn.classList.remove('syncing');
+      statusEl.textContent = 'Error';
+      toast('Sync error: ' + err.message, 'error');
+    });
+}
+
+function mergeAssets(data) {
+  const floor     = S.floors[S.currentFloor];
+  const positions = loadLsPositions();
+  let updated = 0, added = 0, skipped = 0;
+
+  // ── PCs → desks ──
+  for (const pc of (data.pcs || [])) {
+    const existing = floor.items.desks.find(d =>
+      (d.lsId && d.lsId === pc.lsId) || (d.pc && d.pc === pc.pc)
+    );
+    if (existing) {
+      existing.name       = pc.name;
+      existing.lsId       = pc.lsId;
+      existing.lsLastSeen = pc.lastSeen;
+      updated++;
+    } else {
+      const savedPos = positions[pc.lsId] || {};
+      floor.items.desks.push({
+        id:         generateId(),
+        x:          savedPos.x !== undefined ? savedPos.x : null,
+        y:          savedPos.y !== undefined ? savedPos.y : null,
+        name:       pc.name,
+        pc:         pc.pc,
+        ext:        '',
+        hasPC:      true,
+        hasPhone:   false,
+        lsId:       pc.lsId,
+        lsLastSeen: pc.lastSeen,
+        location:   pc.location,
+        department: pc.department,
+      });
+      added++;
+    }
+  }
+
+  // ── Printers ──
+  for (const pr of (data.printers || [])) {
+    const existing = floor.items.printers.find(p =>
+      (p.lsId && p.lsId === pr.lsId) || (p.label && p.label === pr.label)
+    );
+    if (existing) {
+      existing.lsId       = pr.lsId;
+      existing.lsLastSeen = pr.lastSeen;
+      existing.model      = pr.model || existing.model;
+      updated++;
+    } else {
+      const savedPos = positions[pr.lsId] || {};
+      floor.items.printers.push({
+        id:         generateId(),
+        x:          savedPos.x !== undefined ? savedPos.x : null,
+        y:          savedPos.y !== undefined ? savedPos.y : null,
+        label:      pr.label,
+        model:      pr.model,
+        lsId:       pr.lsId,
+        lsLastSeen: pr.lastSeen,
+        location:   pr.location,
+      });
+      added++;
+    }
+  }
+
+  // ── Cameras ──
+  for (const cam of (data.cameras || [])) {
+    const existing = floor.items.cameras.find(c =>
+      (c.lsId && c.lsId === cam.lsId) || (c.name && c.name === cam.name)
+    );
+    if (existing) {
+      existing.lsId       = cam.lsId;
+      existing.lsLastSeen = cam.lastSeen;
+      updated++;
+    } else {
+      const savedPos = positions[cam.lsId] || {};
+      floor.items.cameras.push({
+        id:         generateId(),
+        x:          savedPos.x !== undefined ? savedPos.x : null,
+        y:          savedPos.y !== undefined ? savedPos.y : null,
+        name:       cam.name,
+        lsId:       cam.lsId,
+        lsLastSeen: cam.lastSeen,
+        location:   cam.location,
+      });
+      added++;
+    }
+  }
+
+  // ── Phones → try to match desk by username ──
+  for (const ph of (data.phones || [])) {
+    // Try to find a matching desk
+    const matchedDesk = floor.items.desks.find(d =>
+      (ph.lsId && d.lsId === ph.lsId) ||
+      (ph.name && d.name && d.name.toLowerCase() === ph.name.toLowerCase())
+    );
+    if (matchedDesk) {
+      matchedDesk.hasPhone = true;
+      matchedDesk.ext      = ph.ip || matchedDesk.ext;
+      updated++;
+    } else {
+      skipped++;
+    }
+  }
+
+  return { updated, added, skipped };
+}
+
+function getUnpositioned() {
+  const floor  = S.floors[S.currentFloor];
+  const result = [];
+  for (const d of floor.items.desks) {
+    if (d.x === null || d.x === undefined) result.push({ type: 'desk', item: d });
+  }
+  for (const p of floor.items.printers) {
+    if (p.x === null || p.x === undefined) result.push({ type: 'printer', item: p });
+  }
+  for (const c of floor.items.cameras) {
+    if (c.x === null || c.x === undefined) result.push({ type: 'camera', item: c });
+  }
+  return result;
+}
+
+function renderStagingDock() {
+  const dock      = document.getElementById('staging-dock');
+  const countEl   = document.getElementById('staging-count');
+  const itemsEl   = document.getElementById('staging-items');
+  const unpos     = getUnpositioned();
+
+  if (unpos.length === 0) {
+    dock.classList.remove('show');
+    return;
+  }
+
+  dock.classList.add('show');
+  countEl.textContent = unpos.length;
+  itemsEl.innerHTML   = '';
+
+  const typeColors = { desk: '#e8b840', printer: '#f07850', camera: '#f05888' };
+
+  for (const { type, item } of unpos) {
+    const chip = document.createElement('div');
+    chip.className = 'staging-chip';
+    const label = item.name || item.label || item.lsId || type;
+    const color = typeColors[type] || 'var(--cyan)';
+    chip.innerHTML = `
+      <span class="chip-type" style="color:${color}">${type.toUpperCase()}</span>
+      <span>${label}</span>
+      <button class="chip-place" data-ls-id="${item.lsId || ''}" data-item-id="${item.id}" data-item-type="${type}">PLACE</button>
+    `;
+    itemsEl.appendChild(chip);
+  }
+
+  // Bind PLACE buttons
+  itemsEl.querySelectorAll('.chip-place').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const itemId   = btn.dataset.itemId;
+      const itemType = btn.dataset.itemType;
+      const lsId     = btn.dataset.lsId;
+      const floor    = S.floors[S.currentFloor];
+      const arrKey   = itemType === 'desk' ? 'desks' : itemType === 'printer' ? 'printers' : 'cameras';
+      const item     = floor.items[arrKey].find(i => i.id === itemId);
+      if (!item) return;
+
+      if (!S.editMode) {
+        S.editMode = true;
+        S.placingType = null;
+      }
+      item.x = 490;
+      item.y = 330;
+      if (lsId) savePosition(lsId, 490, 330);
+      saveState();
+      render();
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// SVG HELPERS
+// ═══════════════════════════════════════════════════════
+
+function svgPt(svg, cx, cy) {
+  const p = svg.createSVGPoint();
+  p.x = cx; p.y = cy;
+  return p.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+// ═══════════════════════════════════════════════════════
+// BASE MAP SVGs
+// ═══════════════════════════════════════════════════════
+
+function buildSampleMap(floor) {
+  const desks = floor.items.desks;
+  const deskSvg = desks.map(d => `
+    <rect x="${d.x}" y="${d.y}" width="82" height="50" rx="3" fill="#cfc0a0"/>
+    <rect x="${d.x+2}" y="${d.y+2}" width="78" height="10" rx="1" fill="#b8a888" opacity=".7"/>
+    <circle cx="${d.x+41}" cy="${d.y+64}" r="14" fill="#b0a080" opacity=".65"/>
+  `).join('');
+
+  return `<svg viewBox="0 0 980 660" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <pattern id="g20" width="20" height="20" patternUnits="userSpaceOnUse">
+    <path d="M20 0H0V20" fill="none" stroke="#c8bea8" stroke-width=".35" opacity=".45"/>
+  </pattern>
+  <pattern id="carpet" width="12" height="12" patternUnits="userSpaceOnUse">
+    <rect width="12" height="12" fill="#eae4d6"/>
+    <line x1="0" y1="0" x2="12" y2="12" stroke="#ddd7c8" stroke-width=".5"/>
+    <line x1="12" y1="0" x2="0" y2="12" stroke="#ddd7c8" stroke-width=".3" opacity=".4"/>
+  </pattern>
+  <filter id="sh" x="-20%" y="-20%" width="140%" height="150%">
+    <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#00000050"/>
+  </filter>
+  <linearGradient id="wallShade" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#3a3428"/>
+    <stop offset="100%" stop-color="#28241c"/>
+  </linearGradient>
+</defs>
+
+<!-- Exterior -->
+<rect width="980" height="660" fill="#1e1c18"/>
+
+<!-- ── FLOORS ───────────────────────── -->
+<rect x="10" y="195" width="670" height="455" fill="url(#carpet)"/>
+<rect x="10" y="195" width="670" height="455" fill="url(#g20)"/>
+<rect x="10" y="10" width="248" height="175" fill="#ede6d8"/>
+<rect x="10" y="10" width="248" height="175" fill="url(#g20)"/>
+<rect x="268" y="10" width="228" height="175" fill="#e8e0d0"/>
+<rect x="268" y="10" width="228" height="175" fill="url(#g20)"/>
+<rect x="506" y="10" width="174" height="175" fill="#e8e0d0"/>
+<rect x="506" y="10" width="174" height="175" fill="url(#g20)"/>
+<rect x="680" y="10" width="18" height="640" fill="#d8d0c0"/>
+<rect x="708" y="10" width="262" height="192" fill="#ccd4dc"/>
+<rect x="708" y="10" width="262" height="192" fill="url(#g20)"/>
+<rect x="708" y="212" width="262" height="195" fill="#ddd8d0"/>
+<rect x="708" y="212" width="262" height="195" fill="url(#g20)"/>
+<rect x="708" y="417" width="262" height="233" fill="#d8e0d0"/>
+<rect x="708" y="417" width="262" height="233" fill="url(#g20)"/>
+
+<!-- ── WALLS ─────────────────────────── -->
+<g stroke="#2c2820" stroke-width="7" fill="none" stroke-linejoin="round" stroke-linecap="round">
+  <rect x="10" y="10" width="960" height="640" rx="3"/>
+  <line x1="258" y1="10" x2="258" y2="185"/>
+  <line x1="496" y1="10" x2="496" y2="185"/>
+  <line x1="10"  y1="185" x2="680" y2="185"/>
+  <line x1="680" y1="10"  x2="680" y2="650"/>
+  <line x1="698" y1="10"  x2="698" y2="650"/>
+  <line x1="698" y1="202" x2="970" y2="202"/>
+  <line x1="698" y1="407" x2="970" y2="407"/>
+</g>
+<rect x="678" y="10" width="22" height="640" fill="#2c2820"/>
+<rect x="678" y="330" width="22" height="44" fill="#d8d0c0"/>
+<rect x="10"  y="350" width="7"  height="44" fill="url(#carpet)"/>
+
+<!-- ── DOOR ARCS ───────────────────────── -->
+<g stroke="#9a8a70" stroke-width="1.2" fill="none" opacity=".8">
+  <path d="M10 354 Q44 354 44 388"/>
+  <path d="M680 332 Q648 332 648 364"/>
+  <path d="M380 185 Q380 164 404 164"/>
+  <path d="M698 90  Q726 90  726 115"/>
+  <path d="M698 295 Q726 295 726 320"/>
+  <path d="M698 466 Q726 466 726 491"/>
+</g>
+
+<!-- ── ROOM LABELS ───────────────────── -->
+<g font-family="'Segoe UI',sans-serif" fill="#80705a" text-anchor="middle"
+   font-size="11" font-weight="600" letter-spacing="1.5">
+  <text x="134" y="100">RECEPTION</text>
+  <text x="382" y="95">CONFERENCE A</text>
+  <text x="593" y="95">CONF B</text>
+  <text x="839" y="110">SERVER ROOM</text>
+  <text x="839" y="318">MEETING ROOM</text>
+  <text x="839" y="535">BREAK ROOM</text>
+  <text x="345" y="635">OPEN OFFICE — FLOOR 1</text>
+</g>
+
+<!-- ── RECEPTION FURNITURE ────────────── -->
+<g filter="url(#sh)">
+  <rect x="30"  y="28" width="105" height="32" rx="3" fill="#c0a880"/>
+  <rect x="30"  y="28" width="32"  height="90" rx="3" fill="#c0a880"/>
+</g>
+<circle cx="175" cy="80"  r="13" fill="#a09070" opacity=".7"/>
+<circle cx="205" cy="80"  r="13" fill="#a09070" opacity=".7"/>
+<circle cx="175" cy="112" r="13" fill="#a09070" opacity=".7"/>
+<circle cx="205" cy="112" r="13" fill="#a09070" opacity=".7"/>
+
+<!-- ── CONFERENCE A TABLE ──────────────── -->
+<ellipse cx="382" cy="97" rx="90" ry="45" fill="#c8b888" filter="url(#sh)"/>
+${[298,334,370,406,442,476].map((x,i)=>`<circle cx="${x}" cy="${i<3?46:150}" r="12" fill="#a89878" opacity=".7"/>`).join('')}
+
+<!-- ── CONFERENCE B TABLE ─────────────── -->
+<rect x="525" y="55" width="120" height="65" rx="7" fill="#c8b888" filter="url(#sh)"/>
+${[540,573,606,639].map((x,i)=>`<circle cx="${x}" cy="${i<2?43:137}" r="11" fill="#a89878" opacity=".7"/>`).join('')}
+
+<!-- ── SERVER RACKS ────────────────────── -->
+${[715,754,793,832,871,910].map(x=>`
+  <rect x="${x}" y="22" width="30" height="165" rx="2" fill="#404855" stroke="#505868" stroke-width="1"/>
+  ${[28,36,44,52,60,68].map(y=>`<rect x="${x+3}" y="${y}" width="24" height="4" rx="1" fill="#2a7a50" opacity=".9"/>`).join('')}
+  <rect x="${x+3}" y="76" width="24" height="4" rx="1" fill="#2a5090" opacity=".9"/>
+  <circle cx="${x+25}" cy="32" r="2" fill="#40e880" opacity=".8"/>
+`).join('')}
+
+<!-- ── MEETING ROOM TABLE ─────────────── -->
+<rect x="725" y="234" width="200" height="110" rx="8" fill="#c8b888" filter="url(#sh)"/>
+${[735,768,801,834,867,900].map(x=>`
+  <circle cx="${x}" cy="226" r="12" fill="#a89878" opacity=".7"/>
+  <circle cx="${x}" cy="353" r="12" fill="#a89878" opacity=".7"/>
+`).join('')}
+
+<!-- ── BREAK ROOM ──────────────────────── -->
+<rect x="718" y="422" width="240" height="38" rx="3" fill="#b0a890"/>
+<rect x="718" y="422" width="38"  height="115" rx="3" fill="#b0a890"/>
+<circle cx="820" cy="540" r="44" fill="#c0b8a8" filter="url(#sh)"/>
+${[[790,490],[855,490],[790,592],[855,592]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="12" fill="#a89878" opacity=".7"/>`).join('')}
+
+<!-- ── OPEN OFFICE DESKS ───────────────── -->
+${deskSvg}
+
+<!-- ── AISLE MARKERS ──────────────────── -->
+<line x1="310" y1="200" x2="310" y2="648" stroke="#bab0a0" stroke-width=".8" stroke-dasharray="12,10" opacity=".3"/>
+</svg>`;
+}
+
+function buildEmptyFloor() {
+  return `<svg viewBox="0 0 980 660" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <pattern id="egrid" width="40" height="40" patternUnits="userSpaceOnUse">
+    <path d="M40 0H0V40" fill="none" stroke="#1a2a40" stroke-width="1"/>
+  </pattern>
+  <pattern id="eminor" width="10" height="10" patternUnits="userSpaceOnUse">
+    <path d="M10 0H0V10" fill="none" stroke="#111e2e" stroke-width=".5"/>
+  </pattern>
+</defs>
+<rect width="980" height="660" fill="#080e1c"/>
+<rect width="980" height="660" fill="url(#eminor)"/>
+<rect width="980" height="660" fill="url(#egrid)"/>
+<rect x="10" y="10" width="960" height="640" rx="4" fill="none" stroke="#1e2e44" stroke-width="2"/>
+<text x="490" y="340" text-anchor="middle" fill="#1e2e44" font-size="18"
+  font-family="'Segoe UI',sans-serif" font-weight="700" letter-spacing="3">EMPTY FLOOR</text>
+<text x="490" y="362" text-anchor="middle" fill="#1a2636" font-size="11"
+  font-family="'Segoe UI',sans-serif" letter-spacing="1.5">Upload a floor plan or add items in Edit Mode</text>
+</svg>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// OVERLAY BUILDERS
+// ═══════════════════════════════════════════════════════
+
+const DW = 82, DH = 50;
+
+function shell(color, label, content) {
+  return `<svg viewBox="0 0 980 660" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+  <rect width="980" height="660" fill="${color}" opacity=".055"/>
+  <rect width="980" height="5" fill="${color}" opacity=".75" rx="1"/>
+  <text x="968" y="20" text-anchor="end" fill="${color}" font-size="9.5" font-weight="700"
+    letter-spacing="2.5" font-family="'Segoe UI',sans-serif" opacity=".85">${label}</text>
+  ${content}
+</svg>`;
+}
+
+function overlayDesks(floor) {
+  const c = '#e8b840';
+  const desks = floor.items.desks.filter(d => d.x !== null && d.x !== undefined);
+  return shell(c, 'USER DESKS', desks.map(d => `
+    <rect x="${d.x-2}" y="${d.y-2}" width="${DW+4}" height="${DH+4}" rx="5"
+      fill="rgba(232,184,64,.12)" stroke="${c}" stroke-width="1.6"/>
+    <text x="${d.x+DW/2}" y="${d.y+DH/2-3}" text-anchor="middle"
+      fill="${c}" font-size="8" font-weight="700" font-family="'Segoe UI',sans-serif"
+      filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${d.name.split(' ')[0]}</text>
+    <text x="${d.x+DW/2}" y="${d.y+DH/2+8}" text-anchor="middle"
+      fill="${c}" font-size="7.5" font-family="'Segoe UI',sans-serif" opacity=".8"
+      filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${(d.name.split(' ')[1])||''}</text>
+  `).join(''));
+}
+
+function overlayPCs(floor) {
+  const c = '#48a8f0';
+  const desks = floor.items.desks.filter(d => d.hasPC && d.x !== null && d.x !== undefined);
+  return shell(c, 'PCs / WORKSTATIONS', desks.map(d => `
+    <g>
+      <rect x="${d.x+5}" y="${d.y+5}" width="32" height="24" rx="2"
+        fill="rgba(10,20,40,.88)" stroke="${c}" stroke-width="1.3"/>
+      <rect x="${d.x+9}" y="${d.y+29}" width="24" height="3" rx="1" fill="${c}" opacity=".6"/>
+      <circle cx="${d.x+21}" cy="${d.y+17}" r="2.5" fill="${c}" opacity=".9"/>
+      <text x="${d.x+DW/2+4}" y="${d.y+DH-5}" text-anchor="middle"
+        fill="${c}" font-size="7" font-weight="700" font-family="monospace"
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${d.pc}</text>
+    </g>
+  `).join(''));
+}
+
+function overlayPhones(floor) {
+  const c = '#50d890';
+  const desks = floor.items.desks.filter(d => d.hasPhone && d.x !== null && d.x !== undefined);
+  return shell(c, 'DESK PHONES', desks.map(d => `
+    <g>
+      <rect x="${d.x+54}" y="${d.y+5}" width="22" height="33" rx="5"
+        fill="rgba(10,30,20,.88)" stroke="${c}" stroke-width="1.3"/>
+      <rect x="${d.x+57}" y="${d.y+29}" width="16" height="4" rx="2" fill="${c}" opacity=".4"/>
+      <circle cx="${d.x+65}" cy="${d.y+15}" r="2.5" fill="${c}" opacity=".9"/>
+      <text x="${d.x+DW/2+4}" y="${d.y+DH-5}" text-anchor="middle"
+        fill="${c}" font-size="7" font-weight="700" font-family="monospace"
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">x${d.ext}</text>
+    </g>
+  `).join(''));
+}
+
+function overlayPrinters(floor) {
+  const c = '#f07850';
+  const printers = floor.items.printers.filter(p => p.x !== null && p.x !== undefined);
+  return shell(c, 'PRINTERS', printers.map(p => `
+    <g>
+      <rect x="${p.x-30}" y="${p.y-22}" width="60" height="44" rx="5"
+        fill="rgba(40,15,8,.88)" stroke="${c}" stroke-width="1.5"/>
+      <rect x="${p.x-24}" y="${p.y-17}" width="48" height="8" rx="1" fill="${c}" opacity=".25"/>
+      <rect x="${p.x-18}" y="${p.y-4}" width="36" height="16" rx="2" fill="${c}" opacity=".12" stroke="${c}" stroke-width=".8"/>
+      <text x="${p.x}" y="${p.y+7}" text-anchor="middle"
+        fill="${c}" font-size="8.5" font-weight="700" font-family="'Segoe UI',sans-serif"
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${p.label}</text>
+      <text x="${p.x}" y="${p.y+18}" text-anchor="middle"
+        fill="${c}" font-size="6.5" font-family="'Segoe UI',sans-serif" opacity=".7"
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${p.model||''}</text>
+    </g>
+  `).join(''));
+}
+
+function overlayNetwork(floor) {
+  const c = '#b068f0';
+  const netDrops = floor.items.network;
+  const patchStart = netDrops.findIndex(d => d.t === 'patch');
+  const drops = netDrops.map((d,i) => {
+    const r = d.t === 'wall' ? 6 : d.t === 'patch' ? 7 : 4.5;
+    const patchIdx = d.t === 'patch' ? i - patchStart : -1;
+    const label = d.t === 'patch'
+      ? `<text x="${d.x}" y="${d.y+18}" text-anchor="middle" fill="${c}" font-size="5.5" font-family="monospace" opacity=".75">PP${String(patchIdx).padStart(2,'0')}</text>`
+      : '';
+    return `<circle cx="${d.x}" cy="${d.y}" r="${r}"
+        fill="rgba(20,8,40,.85)" stroke="${c}" stroke-width="1.2"/>
+      <circle cx="${d.x}" cy="${d.y}" r="1.8" fill="${c}" opacity=".9"/>
+      ${label}`;
+  }).join('');
+  return shell(c, 'NETWORK DROPS', drops);
+}
+
+function overlayCameras(floor) {
+  const c = '#f05888';
+  const cameras = floor.items.cameras.filter(cam => cam.x !== null && cam.x !== undefined);
+  const cams = cameras.map((cam,i) => {
+    const dir = cam.x < 490 ? 1 : -1;
+    return `<g>
+      <polygon points="${cam.x},${cam.y-10} ${cam.x+dir*22},${cam.y-5} ${cam.x+dir*22},${cam.y+5} ${cam.x},${cam.y+10}"
+        fill="rgba(40,8,20,.88)" stroke="${c}" stroke-width="1.3"/>
+      <circle cx="${cam.x}" cy="${cam.y}" r="6" fill="rgba(240,88,136,.2)" stroke="${c}" stroke-width="1"/>
+      <circle cx="${cam.x}" cy="${cam.y}" r="2.5" fill="${c}"/>
+      <circle cx="${cam.x}" cy="${cam.y}" r="4.5" fill="none" stroke="${c}" stroke-width=".7" opacity=".5"/>
+      <text x="${cam.x+dir*30}" y="${cam.y+4}" text-anchor="${dir>0?'start':'end'}"
+        fill="${c}" font-size="7.5" font-weight="700" font-family="monospace"
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">CAM-${String(i+1).padStart(2,'0')}</text>
+    </g>`;
+  }).join('');
+  return shell(c, 'SECURITY CAMERAS', cams);
+}
+
+const OVERLAY_BUILDERS = {
+  desks:    overlayDesks,
+  pcs:      overlayPCs,
+  phones:   overlayPhones,
+  printers: overlayPrinters,
+  network:  overlayNetwork,
+  cameras:  overlayCameras,
+};
+
+// ═══════════════════════════════════════════════════════
+// EDIT LAYER
+// ═══════════════════════════════════════════════════════
+
+function buildEditLayer(floor) {
+  const items = [];
+  for (const d of floor.items.desks) {
+    if (d.x === null || d.x === undefined) continue;
+    const cx = d.x + 41, cy = d.y + 25;
+    items.push(`<circle data-id="${d.id}" data-type="desks" cx="${cx}" cy="${cy}" r="16"
+      fill="rgba(232,184,64,.25)" stroke="#e8b840" stroke-width="1.8" style="cursor:move"/>
+      <text data-id="${d.id}" data-type="desks" x="${cx}" y="${cy+4}" text-anchor="middle"
+        fill="#e8b840" font-size="10" font-weight="700" font-family="'Segoe UI',sans-serif"
+        style="pointer-events:none">D</text>`);
+  }
+  for (const p of floor.items.printers) {
+    if (p.x === null || p.x === undefined) continue;
+    items.push(`<circle data-id="${p.id}" data-type="printers" cx="${p.x}" cy="${p.y}" r="16"
+      fill="rgba(240,120,80,.25)" stroke="#f07850" stroke-width="1.8" style="cursor:move"/>
+      <text data-id="${p.id}" data-type="printers" x="${p.x}" y="${p.y+4}" text-anchor="middle"
+        fill="#f07850" font-size="10" font-weight="700" font-family="'Segoe UI',sans-serif"
+        style="pointer-events:none">P</text>`);
+  }
+  for (const n of floor.items.network) {
+    items.push(`<circle data-id="${n.id}" data-type="network" cx="${n.x}" cy="${n.y}" r="10"
+      fill="rgba(176,104,240,.25)" stroke="#b068f0" stroke-width="1.5" style="cursor:move"/>
+      <text data-id="${n.id}" data-type="network" x="${n.x}" y="${n.y+4}" text-anchor="middle"
+        fill="#b068f0" font-size="8" font-weight="700" font-family="'Segoe UI',sans-serif"
+        style="pointer-events:none">N</text>`);
+  }
+  for (const cam of floor.items.cameras) {
+    if (cam.x === null || cam.x === undefined) continue;
+    items.push(`<circle data-id="${cam.id}" data-type="cameras" cx="${cam.x}" cy="${cam.y}" r="12"
+      fill="rgba(240,88,136,.25)" stroke="#f05888" stroke-width="1.5" style="cursor:move"/>
+      <text data-id="${cam.id}" data-type="cameras" x="${cam.x}" y="${cam.y+4}" text-anchor="middle"
+        fill="#f05888" font-size="8" font-weight="700" font-family="'Segoe UI',sans-serif"
+        style="pointer-events:none">C</text>`);
+  }
+  return `<svg id="edit-svg" viewBox="0 0 980 660" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+  ${items.join('\n')}
+</svg>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════
+
+const stackEl      = document.getElementById('stack');
+const filterListEl = document.getElementById('filter-list');
+const floorTabsEl  = document.getElementById('floor-tabs');
+const editToolbar  = document.getElementById('edit-toolbar');
+const editModeBtn  = document.getElementById('edit-mode-btn');
+const tiltEl       = document.getElementById('tilt');
+const imgSliderWrap= document.getElementById('img-slider-wrap');
+const imgSlider    = document.getElementById('img-opacity-slider');
+
+// Overlay divs — created once
+const overlayEls = {};
+const filterBtnEls = {};
+let baseEl = null;
+let editOvEl = null;
+
+function initDOM() {
+  // Base map layer
+  baseEl = document.createElement('div');
+  baseEl.id = 'base-map';
+  stackEl.appendChild(baseEl);
+
+  // Overlay layers
+  for (const f of FILTERS) {
+    const ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.id = `ov-${f.id}`;
+    stackEl.appendChild(ov);
+    overlayEls[f.id] = ov;
+
+    // Filter button
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.style.setProperty('--c', f.color);
+    btn.innerHTML = `
+      <span class="ficon">${f.icon}</span>
+      <span class="filter-btn-label">${f.label}</span>
+      <span class="fbadge" id="badge-${f.id}">0</span>
+    `;
+    btn.addEventListener('click', () => {
+      toggleFilter(f.id);
+    });
+    filterListEl.appendChild(btn);
+    filterBtnEls[f.id] = btn;
+  }
+
+  // Edit overlay — always on top
+  editOvEl = document.createElement('div');
+  editOvEl.id = 'ov-edit';
+  stackEl.appendChild(editOvEl);
+}
+
+function updateStatusLayers() {
+  const layersEl = document.getElementById('status-layers');
+  if (!layersEl) return;
+  const count = S.filters.length;
+  if (count > 0) {
+    layersEl.textContent = `${count} Layer${count !== 1 ? 's' : ''} Active`;
+    layersEl.classList.add('active');
+  } else {
+    layersEl.textContent = 'No Layers Active';
+    layersEl.classList.remove('active');
+  }
+}
+
+function render() {
+  const floor = S.floors[S.currentFloor];
+
+  // ── Floor tabs ──
+  floorTabsEl.innerHTML = '';
+  S.floors.forEach((fl, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'floor-tab' + (i === S.currentFloor ? ' active' : '');
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = fl.name;
+    nameSpan.style.cssText = 'pointer-events:none; user-select:none;';
+    tab.appendChild(nameSpan);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'floor-tab-del';
+    delBtn.textContent = '×';
+    delBtn.title = 'Delete floor';
+    delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteFloor(i); });
+    tab.appendChild(delBtn);
+
+    tab.addEventListener('click', () => {
+      if (S.currentFloor !== i) {
+        S.currentFloor = i;
+        S.placingType = null;
+        saveState();
+        render();
+      }
+    });
+    tab.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      const newName = prompt('Rename floor:', fl.name);
+      if (newName && newName.trim()) {
+        fl.name = newName.trim();
+        saveState();
+        render();
+      }
+    });
+    floorTabsEl.appendChild(tab);
+  });
+
+  // ── Base map ──
+  if (floor.image) {
+    baseEl.innerHTML = `<svg viewBox="0 0 980 660" xmlns="http://www.w3.org/2000/svg">
+      <image href="${floor.image}" x="0" y="0" width="980" height="660"
+        preserveAspectRatio="xMidYMid meet" opacity="${floor.imageOpacity}"/>
+    </svg>`;
+    imgSliderWrap.classList.add('show');
+    imgSlider.value = floor.imageOpacity;
+  } else if (S.currentFloor === 0) {
+    baseEl.innerHTML = buildSampleMap(floor);
+    imgSliderWrap.classList.remove('show');
+  } else {
+    baseEl.innerHTML = buildEmptyFloor();
+    imgSliderWrap.classList.remove('show');
+  }
+
+  // ── Filter overlays ──
+  const filterBadgeCounts = {
+    desks:    floor.items.desks.length,
+    pcs:      floor.items.desks.filter(d=>d.hasPC).length,
+    phones:   floor.items.desks.filter(d=>d.hasPhone).length,
+    printers: floor.items.printers.length,
+    network:  floor.items.network.length,
+    cameras:  floor.items.cameras.length,
+  };
+
+  for (const f of FILTERS) {
+    // Rebuild content
+    overlayEls[f.id].innerHTML = OVERLAY_BUILDERS[f.id](floor);
+
+    // Badge
+    const badge = document.getElementById(`badge-${f.id}`);
+    if (badge) badge.textContent = filterBadgeCounts[f.id];
+
+    // Active state
+    const isActive = S.filters.includes(f.id);
+    const showAll = S.editMode;
+    if (isActive || showAll) {
+      overlayEls[f.id].classList.add('on');
+    } else {
+      overlayEls[f.id].classList.remove('on');
+    }
+    filterBtnEls[f.id].classList.toggle('active', isActive);
+  }
+
+  // ── Edit layer ──
+  if (S.editMode) {
+    editOvEl.innerHTML = buildEditLayer(floor);
+    editOvEl.classList.add('active');
+    if (S.placingType) {
+      editOvEl.classList.add('placing');
+    } else {
+      editOvEl.classList.remove('placing');
+    }
+    bindEditLayer();
+    editToolbar.classList.add('show');
+    editModeBtn.classList.add('edit-active');
+    tiltEl.style.transform = 'none';
+  } else {
+    editOvEl.innerHTML = '';
+    editOvEl.classList.remove('active', 'placing');
+    editToolbar.classList.remove('show');
+    editModeBtn.classList.remove('edit-active');
+    tiltEl.style.transform = 'rotateX(40deg)';
+    hideAddForm();
+  }
+
+  // ── Edit toolbar tool buttons ──
+  document.querySelectorAll('.et-btn[data-place]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.place === S.placingType);
+  });
+
+  // ── Status bar layer count ──
+  updateStatusLayers();
+
+  // ── Staging dock ──
+  renderStagingDock();
+}
+
+// ═══════════════════════════════════════════════════════
+// FILTER TOGGLE
+// ═══════════════════════════════════════════════════════
+
+function toggleFilter(id) {
+  const idx = S.filters.indexOf(id);
+  if (idx >= 0) {
+    S.filters.splice(idx, 1);
+  } else {
+    S.filters.push(id);
+  }
+  saveState();
+  render();
+}
+
+// ═══════════════════════════════════════════════════════
+// EDIT MODE — DRAG & DROP
+// ═══════════════════════════════════════════════════════
+
+function bindEditLayer() {
+  const svg = document.getElementById('edit-svg');
+  if (!svg) return;
+
+  let dragging = null;
+  let dragType = null;
+  let dragId = null;
+  let startPt = null;
+  let startItemPos = null;
+
+  function getItemAndFloor(id, type) {
+    const floor = S.floors[S.currentFloor];
+    const arr = floor.items[type];
+    return arr.find(x => x.id === id);
+  }
+
+  svg.addEventListener('pointerdown', (e) => {
+    // Click on empty space for placing
+    if (S.placingType && !e.target.dataset.id) {
+      const pt = svgPt(svg, e.clientX, e.clientY);
+      showAddForm(pt.x, pt.y, e.clientX, e.clientY);
+      return;
+    }
+
+    const el = e.target.closest('[data-id]');
+    if (!el) return;
+
+    e.preventDefault();
+    dragging = el;
+    dragId = el.dataset.id;
+    dragType = el.dataset.type;
+    startPt = svgPt(svg, e.clientX, e.clientY);
+
+    const item = getItemAndFloor(dragId, dragType);
+    if (!item) return;
+
+    if (dragType === 'desks') {
+      startItemPos = { x: item.x, y: item.y };
+    } else {
+      startItemPos = { x: item.x, y: item.y };
+    }
+
+    svg.setPointerCapture(e.pointerId);
+  });
+
+  svg.addEventListener('pointermove', (e) => {
+    if (!dragging || !startPt) return;
+    e.preventDefault();
+    const pt = svgPt(svg, e.clientX, e.clientY);
+    const dx = pt.x - startPt.x;
+    const dy = pt.y - startPt.y;
+
+    const item = getItemAndFloor(dragId, dragType);
+    if (!item) return;
+
+    item.x = startItemPos.x + dx;
+    item.y = startItemPos.y + dy;
+
+    // Re-render edit layer only (fast path)
+    const floor = S.floors[S.currentFloor];
+    editOvEl.innerHTML = buildEditLayer(floor);
+    bindEditLayer(); // re-bind after innerHTML update
+    // Re-render relevant overlay too
+    overlayEls[dragType] && (overlayEls[dragType].innerHTML = OVERLAY_BUILDERS[dragType](floor));
+    if (dragType === 'desks') {
+      overlayEls['pcs'] && (overlayEls['pcs'].innerHTML = OVERLAY_BUILDERS['pcs'](floor));
+      overlayEls['phones'] && (overlayEls['phones'].innerHTML = OVERLAY_BUILDERS['phones'](floor));
+    }
+    // exit — we've re-bound so this handler is now on old svg
+  });
+
+  svg.addEventListener('pointerup', (e) => {
+    if (!dragging) return;
+    const item = getItemAndFloor(dragId, dragType);
+    // Save lsId position if present
+    if (item && item.lsId) {
+      savePosition(item.lsId, item.x, item.y);
+    }
+    dragging = null;
+    dragId = null;
+    dragType = null;
+    startPt = null;
+    startItemPos = null;
+    svg.releasePointerCapture(e.pointerId);
+    saveState();
+  });
+
+  svg.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const el = e.target.closest('[data-id]');
+    if (!el) return;
+    const id = el.dataset.id;
+    const type = el.dataset.type;
+    const floor = S.floors[S.currentFloor];
+    const arr = floor.items[type];
+    const item = arr.find(x => x.id === id);
+    if (!item) return;
+    const label = type === 'desks' ? item.name : (item.label || type);
+    if (!confirm(`Delete ${type.slice(0,-1)}: ${label}?`)) return;
+    floor.items[type] = arr.filter(x => x.id !== id);
+    saveState();
+    render();
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// ADD FORM
+// ═══════════════════════════════════════════════════════
+
+const addFormEl = document.getElementById('add-form');
+let _addSvgX = 0, _addSvgY = 0;
+
+function showAddForm(svgX, svgY, screenX, screenY) {
+  _addSvgX = svgX;
+  _addSvgY = svgY;
+  const type = S.placingType;
+  const floor = S.floors[S.currentFloor];
+
+  let fields = '';
+  let title = '';
+
+  if (type === 'desks') {
+    title = 'Add Desk';
+    const nextNum = floor.items.desks.length + 1;
+    fields = `
+      <div class="af-field"><label>Name</label><input id="af-name" type="text" placeholder="e.g. Alice Johnson"/></div>
+      <div class="af-field-row">
+        <div class="af-field"><label>PC ID</label><input id="af-pc" type="text" value="WS-${String(nextNum).padStart(3,'0')}"/></div>
+        <div class="af-field"><label>Extension</label><input id="af-ext" type="text" value="${100+nextNum}"/></div>
+      </div>
+      <div class="af-check-row">
+        <label><input type="checkbox" id="af-haspc" checked> Has PC</label>
+        <label><input type="checkbox" id="af-hasphone" checked> Has Phone</label>
+      </div>`;
+  } else if (type === 'printers') {
+    title = 'Add Printer';
+    const nextNum = floor.items.printers.length + 1;
+    fields = `
+      <div class="af-field"><label>Printer ID</label><input id="af-pid" type="text" value="PRN-${String(nextNum).padStart(3,'0')}"/></div>
+      <div class="af-field"><label>Model</label><input id="af-pmodel" type="text" placeholder="e.g. HP LaserJet Pro"/></div>`;
+  } else if (type === 'network') {
+    title = 'Add Network Drop';
+    fields = `
+      <div class="af-field"><label>Type</label>
+        <select id="af-ntype">
+          <option value="floor">Floor Drop</option>
+          <option value="wall">Wall Drop</option>
+          <option value="patch">Patch Panel</option>
+        </select>
+      </div>`;
+  } else if (type === 'cameras') {
+    title = 'Add Camera';
+    fields = `<p style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">Click Add to place camera at this location.</p>`;
+  }
+
+  addFormEl.innerHTML = `
+    <h4>${title}</h4>
+    ${fields}
+    <div class="af-actions">
+      <button class="af-add" id="af-add-btn">Add</button>
+      <button class="af-cancel" id="af-cancel-btn">Cancel</button>
+    </div>`;
+
+  // Position near cursor, keep in viewport
+  const margin = 10;
+  let left = screenX + 12;
+  let top  = screenY - 20;
+  addFormEl.style.left = '0';
+  addFormEl.style.top = '0';
+  addFormEl.classList.add('show');
+  const fw = addFormEl.offsetWidth;
+  const fh = addFormEl.offsetHeight;
+  if (left + fw > window.innerWidth - margin) left = screenX - fw - 12;
+  if (top + fh > window.innerHeight - margin) top = window.innerHeight - fh - margin;
+  if (top < margin) top = margin;
+  addFormEl.style.left = left + 'px';
+  addFormEl.style.top  = top  + 'px';
+
+  document.getElementById('af-add-btn').addEventListener('click', commitAdd);
+  document.getElementById('af-cancel-btn').addEventListener('click', hideAddForm);
+}
+
+function hideAddForm() {
+  addFormEl.classList.remove('show');
+  addFormEl.innerHTML = '';
+}
+
+function commitAdd() {
+  const type = S.placingType;
+  const floor = S.floors[S.currentFloor];
+  const newId = generateId();
+
+  if (type === 'desks') {
+    const name = document.getElementById('af-name').value.trim() || 'New Desk';
+    floor.items.desks.push({
+      id: newId,
+      x: Math.round(_addSvgX - 41),
+      y: Math.round(_addSvgY - 25),
+      name,
+      pc: document.getElementById('af-pc').value.trim(),
+      ext: document.getElementById('af-ext').value.trim(),
+      hasPC: document.getElementById('af-haspc').checked,
+      hasPhone: document.getElementById('af-hasphone').checked,
+    });
+  } else if (type === 'printers') {
+    floor.items.printers.push({
+      id: newId,
+      x: Math.round(_addSvgX),
+      y: Math.round(_addSvgY),
+      label: document.getElementById('af-pid').value.trim(),
+      model: document.getElementById('af-pmodel').value.trim(),
+    });
+  } else if (type === 'network') {
+    floor.items.network.push({
+      id: newId,
+      x: Math.round(_addSvgX),
+      y: Math.round(_addSvgY),
+      t: document.getElementById('af-ntype').value,
+    });
+  } else if (type === 'cameras') {
+    floor.items.cameras.push({
+      id: newId,
+      x: Math.round(_addSvgX),
+      y: Math.round(_addSvgY),
+    });
+  }
+
+  hideAddForm();
+  saveState();
+  render();
+}
+
+// ═══════════════════════════════════════════════════════
+// FLOOR MANAGEMENT
+// ═══════════════════════════════════════════════════════
+
+function addFloor() {
+  const name = prompt('New floor name:', `Floor ${S.floors.length + 1}`);
+  if (!name) return;
+  S.floors.push(makeEmptyFloor(name.trim() || `Floor ${S.floors.length + 1}`));
+  S.currentFloor = S.floors.length - 1;
+  saveState();
+  render();
+}
+
+function deleteFloor(i) {
+  if (S.floors.length <= 1) { alert('Cannot delete the only floor.'); return; }
+  if (!confirm(`Delete "${S.floors[i].name}"? This cannot be undone.`)) return;
+  S.floors.splice(i, 1);
+  if (S.currentFloor >= S.floors.length) S.currentFloor = S.floors.length - 1;
+  saveState();
+  render();
+}
+
+// ═══════════════════════════════════════════════════════
+// IMPORT / EXPORT
+// ═══════════════════════════════════════════════════════
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'office-layout.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJSONText(text) {
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed.floors || !Array.isArray(parsed.floors) || parsed.floors.length === 0) {
+      throw new Error('Invalid JSON: missing floors array.');
+    }
+    parsed.editMode = false;
+    parsed.placingType = null;
+    S = parsed;
+    saveState();
+    render();
+    closeImportModal();
+  } catch(e) {
+    document.getElementById('im-err').textContent = 'Error: ' + e.message;
+  }
+}
+
+function importCSVText(text) {
+  try {
+    const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('type,'));
+    const floor = S.floors[S.currentFloor];
+    let added = 0;
+    for (const line of lines) {
+      const parts = line.split(',').map(s => s.trim());
+      const [type, name, xs, ys, extra1, extra2] = parts;
+      const x = parseFloat(xs) || 0;
+      const y = parseFloat(ys) || 0;
+      const id = generateId();
+      if (type === 'desk') {
+        floor.items.desks.push({ id, x, y, name: name||'New Desk', pc: extra1||'WS-000', ext: extra2||'100', hasPC: true, hasPhone: true });
+        added++;
+      } else if (type === 'printer') {
+        floor.items.printers.push({ id, x, y, label: name||'PRN-000', model: extra1||'' });
+        added++;
+      } else if (type === 'network') {
+        floor.items.network.push({ id, x, y, t: extra1||'floor' });
+        added++;
+      } else if (type === 'camera') {
+        floor.items.cameras.push({ id, x, y });
+        added++;
+      }
+    }
+    if (added === 0) throw new Error('No valid rows found. Check format: type,name,x,y,extra1,extra2');
+    saveState();
+    render();
+    closeImportModal();
+  } catch(e) {
+    document.getElementById('im-err').textContent = 'Error: ' + e.message;
+  }
+}
+
+function downloadCSVTemplate() {
+  const content = `type,name,x,y,extra1,extra2
+desk,Alice Johnson,22,218,WS-001,101
+printer,PRN-005,400,300,HP LaserJet,
+network,,150,200,wall,
+camera,,660,18,,
+`;
+  const blob = new Blob([content], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'office-layout-template.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Import Modal ──
+
+let importMode = 'json'; // 'json' | 'csv'
+
+function openImportModal(mode) {
+  importMode = mode;
+  const modal = document.getElementById('import-modal');
+  const title = document.getElementById('im-title');
+  const pastePnl = document.getElementById('im-panel-paste');
+  const filePnl  = document.getElementById('im-panel-file');
+  const actions  = document.getElementById('im-actions');
+  const err      = document.getElementById('im-err');
+
+  err.textContent = '';
+  title.textContent = mode === 'json' ? 'Import JSON' : 'Import CSV';
+
+  if (mode === 'json') {
+    pastePnl.innerHTML = `
+      <p>Paste the full JSON export below:</p>
+      <textarea id="im-paste-area" placeholder='{"floors": [...], ...}'></textarea>`;
+    filePnl.innerHTML = `
+      <p>Select a .json file to load:</p>
+      <label class="im-btn-file" style="display:inline-block;cursor:pointer">
+        Choose File
+        <input type="file" class="im-file-input" id="im-file-input" accept=".json">
+      </label>
+      <span id="im-file-name" style="font-size:10.5px;color:var(--text-dim);margin-left:8px;"></span>`;
+  } else {
+    pastePnl.innerHTML = `
+      <p>Paste CSV rows below. Format: <code style="color:#b068f0">type,name,x,y,extra1,extra2</code><br>
+      Types: desk, printer, network, camera</p>
+      <textarea id="im-paste-area" placeholder="desk,Alice Johnson,22,218,WS-001,101&#10;camera,,660,18,,"></textarea>`;
+    filePnl.innerHTML = `
+      <p>Select a .csv file to import into the current floor:</p>
+      <label class="im-btn-file" style="display:inline-block;cursor:pointer">
+        Choose File
+        <input type="file" class="im-file-input" id="im-file-input" accept=".csv">
+      </label>
+      <span id="im-file-name" style="font-size:10.5px;color:var(--text-dim);margin-left:8px;"></span>`;
+  }
+
+  actions.innerHTML = `
+    <button class="im-btn" id="im-do-btn">${mode === 'json' ? 'Load JSON' : 'Import CSV'}</button>
+    <button class="im-cancel" id="im-close-btn">Cancel</button>`;
+
+  modal.classList.add('show');
+
+  // Tab switching
+  document.querySelectorAll('.im-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.im-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const panelId = 'im-panel-' + tab.dataset.panel;
+      document.getElementById('im-panel-paste').classList.toggle('active', tab.dataset.panel === 'paste');
+      document.getElementById('im-panel-file').classList.toggle('active', tab.dataset.panel === 'file');
+    });
+  });
+
+  document.getElementById('im-do-btn').addEventListener('click', () => {
+    err.textContent = '';
+    const activeTab = document.querySelector('.im-tab.active').dataset.panel;
+    if (activeTab === 'paste') {
+      const text = document.getElementById('im-paste-area').value.trim();
+      if (!text) { err.textContent = 'Please paste some content.'; return; }
+      if (mode === 'json') importJSONText(text);
+      else importCSVText(text);
+    } else {
+      const fi = document.getElementById('im-file-input');
+      if (!fi || !fi.files[0]) { err.textContent = 'Please select a file.'; return; }
+      const reader = new FileReader();
+      reader.onload = ev => {
+        if (mode === 'json') importJSONText(ev.target.result);
+        else importCSVText(ev.target.result);
+      };
+      reader.readAsText(fi.files[0]);
+    }
+  });
+
+  document.getElementById('im-close-btn').addEventListener('click', closeImportModal);
+
+  // File name display
+  setTimeout(() => {
+    const fi = document.getElementById('im-file-input');
+    if (fi) {
+      fi.addEventListener('change', () => {
+        const nameEl = document.getElementById('im-file-name');
+        if (nameEl) nameEl.textContent = fi.files[0] ? fi.files[0].name : '';
+      });
+    }
+  }, 50);
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal').classList.remove('show');
+}
+
+// ═══════════════════════════════════════════════════════
+// UPLOAD MAP
+// ═══════════════════════════════════════════════════════
+
+function uploadMap(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const floor = S.floors[S.currentFloor];
+    floor.image = ev.target.result;
+    floor.imageOpacity = 0.85;
+    saveState();
+    render();
+  };
+  reader.readAsDataURL(file);
+}
+
+// ═══════════════════════════════════════════════════════
+// EVENT BINDINGS
+// ═══════════════════════════════════════════════════════
+
+document.getElementById('add-floor-btn').addEventListener('click', addFloor);
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  S.filters = [];
+  saveState();
+  render();
+});
+
+document.getElementById('export-btn').addEventListener('click', exportJSON);
+
+document.getElementById('upload-map-btn').addEventListener('click', () => {
+  document.getElementById('upload-map-input').click();
+});
+document.getElementById('upload-map-input').addEventListener('change', e => {
+  uploadMap(e.target.files[0]);
+  e.target.value = '';
+});
+
+// Import dropdown
+const importBtn = document.getElementById('import-btn');
+const importDropdown = document.getElementById('import-dropdown');
+importBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  importDropdown.classList.toggle('open');
+});
+document.addEventListener('click', () => importDropdown.classList.remove('open'));
+
+document.getElementById('import-json-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  importDropdown.classList.remove('open');
+  openImportModal('json');
+});
+document.getElementById('import-csv-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  importDropdown.classList.remove('open');
+  openImportModal('csv');
+});
+document.getElementById('csv-template-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  importDropdown.classList.remove('open');
+  downloadCSVTemplate();
+});
+
+// Lansweeper sync button
+document.getElementById('ls-sync-btn').addEventListener('click', syncLansweeper);
+
+// Edit mode toggle
+document.getElementById('edit-mode-btn').addEventListener('click', () => {
+  S.editMode = !S.editMode;
+  S.placingType = null;
+  saveState();
+  render();
+});
+
+// Edit toolbar buttons
+document.querySelectorAll('.et-btn[data-place]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.place;
+    S.placingType = S.placingType === type ? null : type;
+    render();
+  });
+});
+
+document.querySelector('.et-exit').addEventListener('click', () => {
+  S.editMode = false;
+  S.placingType = null;
+  saveState();
+  render();
+});
+
+// Image opacity slider
+imgSlider.addEventListener('input', () => {
+  const floor = S.floors[S.currentFloor];
+  if (floor.image) {
+    floor.imageOpacity = parseFloat(imgSlider.value);
+    // Fast update — just change the image opacity attribute
+    const imgEl = baseEl.querySelector('image');
+    if (imgEl) imgEl.setAttribute('opacity', floor.imageOpacity);
+  }
+});
+imgSlider.addEventListener('change', () => {
+  saveState();
+});
+
+// Close add form on ESC, close modal on ESC
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    hideAddForm();
+    closeImportModal();
+    if (S.placingType) { S.placingType = null; render(); }
+  }
+});
+
+// Click outside modal to close
+document.getElementById('import-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('import-modal')) closeImportModal();
+});
+
+// ═══════════════════════════════════════════════════════
+// BOOTSTRAP
+// ═══════════════════════════════════════════════════════
+
+function init() {
+  initDOM();
+  S = loadState() || defaultState();
+  render();
+  checkLsStatus();
+
+  // Live clock
+  setInterval(() => {
+    const el = document.getElementById('status-time');
+    if (el) el.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  }, 1000);
+  // Set initial time immediately
+  const el = document.getElementById('status-time');
+  if (el) el.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+
+init();
+</script>
+</body>
+</html>
