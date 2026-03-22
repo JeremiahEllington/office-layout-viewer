@@ -1,5 +1,12 @@
 {
   "port": 3000,
+  "intune": {
+    "tenantId": "YOUR_TENANT_ID_HERE",
+    "clientId": "YOUR_APP_CLIENT_ID_HERE",
+    "clientSecret": "YOUR_APP_CLIENT_SECRET_HERE",
+    "_note": "Create an App Registration in Azure AD. Grant it the DeviceManagementManagedDevices.Read.All application permission (not delegated). Generate a client secret under Certificates & Secrets.",
+    "cacheSeconds": 300
+  },
   "ringcentral": {
     "clientId": "YOUR_RC_CLIENT_ID_HERE",
     "clientSecret": "YOUR_RC_CLIENT_SECRET_HERE",

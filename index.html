@@ -1017,6 +1017,12 @@ body {
 #rc-sync-btn.syncing #rc-sync-icon { display: inline-block; animation: spin 1s linear infinite; }
 #rc-sync-status { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
 
+/* ── Intune Sync Button ───────────────────────────────── */
+#intune-sync-btn { border-color: #5090f0; color: #5090f0; }
+#intune-sync-btn.disconnected { border-color: #f05888; color: #f05888; opacity: 0.6; cursor: not-allowed; }
+#intune-sync-btn.syncing #intune-sync-icon { display: inline-block; animation: spin 1s linear infinite; }
+#intune-sync-status { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
+
 /* ── Presence status ─────────────────────────────────── */
 .rc-presence { display: flex; align-items: center; gap: 8px; padding: 8px 0 6px; }
 .rc-presence-dot {
@@ -1058,6 +1064,44 @@ body {
 .rc-active-call-row {
   font-size: 9px; color: rgba(200,240,255,0.8);
   font-family: 'Courier New', monospace;
+}
+
+/* ── Intune compliance badge ─────────────────────────── */
+.intune-compliance {
+  display: flex; align-items: center; gap: 8px; padding: 8px 0 4px;
+}
+.intune-compliance-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+}
+.intune-compliance-dot.compliant    { background: #40d080; box-shadow: 0 0 6px #40d080; }
+.intune-compliance-dot.noncompliant { background: #f04040; box-shadow: 0 0 6px #f04040; }
+.intune-compliance-dot.unknown,
+.intune-compliance-dot.notapplicable { background: rgba(0,200,255,0.2); }
+.intune-compliance-text {
+  font-size: 11px; font-family: 'Courier New', monospace;
+  font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+}
+.intune-compliance-text.compliant    { color: #40d080; }
+.intune-compliance-text.noncompliant { color: #f04040; }
+.intune-compliance-text.unknown,
+.intune-compliance-text.notapplicable { color: rgba(0,200,255,0.3); }
+.intune-sync-time {
+  font-size: 8px; color: rgba(0,200,255,0.45);
+  font-family: 'Courier New', monospace; letter-spacing: 0.5px;
+  margin-top: 1px;
+}
+.intune-storage-bar-wrap {
+  height: 4px; background: rgba(0,200,255,0.1);
+  border: 1px solid rgba(0,200,255,0.2); margin: 5px 0 2px;
+}
+.intune-storage-bar {
+  height: 100%; background: rgba(0,200,255,0.5); transition: width 0.4s ease;
+}
+.intune-storage-bar.warn  { background: #f08040; }
+.intune-storage-bar.crit  { background: #f04040; }
+.intune-storage-label {
+  font-size: 8px; color: rgba(0,200,255,0.5);
+  font-family: 'Courier New', monospace; text-align: right;
 }
 
 /* ── Staging Dock ────────────────────────────────────── */
@@ -1445,6 +1489,10 @@ body {
       <span id="rc-sync-icon">⟳</span> RINGCENTRAL
     </button>
     <span id="rc-sync-status"></span>
+    <button class="tb-btn" id="intune-sync-btn" title="Sync PCs from Microsoft Intune">
+      <span id="intune-sync-icon">⟳</span> INTUNE
+    </button>
+    <span id="intune-sync-status"></span>
     <button class="tb-btn" id="edit-mode-btn">Edit Mode</button>
   </div>
 
@@ -1626,6 +1674,9 @@ const NAMES = [
   'Uma Lee','Victor Walker','Wendy Hall','Xavier Allen'
 ];
 
+const SAMPLE_INTUNE_COMPLIANCE = ['compliant','compliant','compliant','noncompliant','compliant','compliant','unknown','compliant'];
+const SAMPLE_INTUNE_MODELS     = ['Dell Latitude 5540','Dell Latitude 5540','HP EliteBook 840 G10','Dell OptiPlex 7010','Dell Latitude 5540','Lenovo ThinkPad T14','HP EliteBook 840 G10','Dell Latitude 5540'];
+const SAMPLE_INTUNE_OS_VER     = ['10.0.22631.3737','10.0.22631.3737','10.0.22631.3593','10.0.22621.3007','10.0.22631.3737','11.0.22631.3593','10.0.22631.3737','10.0.22631.3812'];
 const SAMPLE_RC_DEPARTMENTS = ['Engineering','Engineering','Marketing','Finance','Engineering','IT','HR','Sales'];
 const SAMPLE_RC_PRESENCE    = ['Available','Available','Busy','Available','DnD','Offline','Available','Busy'];
 const SAMPLE_RC_TELEPHONY   = ['NoCall','NoCall','CallConnected','NoCall','NoCall','NoCall','NoCall','OnHold'];
@@ -1647,6 +1698,25 @@ function buildSampleDesks() {
         ext: `${101 + di}`,
         hasPC: di !== 7 && di !== 15,
         hasPhone,
+        intune: di !== 7 && di !== 15 ? {
+          intuneId:        `intune-${1000 + di}`,
+          deviceName:      `WS-${String(di+1).padStart(3,'0')}`,
+          userDisplayName: NAMES[di],
+          userEmail:       `${NAMES[di].split(' ')[0].toLowerCase()}.${NAMES[di].split(' ')[1].toLowerCase()}@company.com`,
+          os:              'Windows',
+          osVersion:       SAMPLE_INTUNE_OS_VER[rcIdx],
+          manufacturer:    SAMPLE_INTUNE_MODELS[rcIdx].split(' ')[0],
+          model:           SAMPLE_INTUNE_MODELS[rcIdx],
+          serialNumber:    `SN${String(100000 + di * 7).padStart(6,'0')}`,
+          complianceState: SAMPLE_INTUNE_COMPLIANCE[rcIdx],
+          lastSync:        new Date(Date.now() - (rcIdx * 2 + 1) * 3600000).toISOString(),
+          enrolled:        new Date('2024-01-15').toISOString(),
+          totalStorage:    '512.0 GB',
+          freeStorage:     `${(180 - di * 6).toFixed(1)} GB`,
+          managementState: 'managed',
+          autopilot:       true,
+          azureAdId:       `aaaaaaaa-${String(di).padStart(4,'0')}-4000-b000-000000000000`,
+        } : null,
         rc: hasPhone ? {
           rcId:            String(1000 + di),
           ext:             `${101 + di}`,
@@ -1973,6 +2043,103 @@ function mergeRingCentral(extensions) {
           dndStatus:       match.dndStatus,
           model:           match.model,
           activeCalls:     match.activeCalls || [],
+        };
+        merged++;
+      }
+    }
+  }
+  return merged;
+}
+
+// ═══════════════════════════════════════════════════════
+// INTUNE INTEGRATION
+// ═══════════════════════════════════════════════════════
+
+function checkIntuneStatus() {
+  const btn = document.getElementById('intune-sync-btn');
+  fetch('/api/status')
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok && data.intuneConfigured) {
+        S.intuneConnected = true;
+        btn.classList.remove('disconnected');
+        btn.title = 'Sync PCs from Microsoft Intune';
+      } else {
+        S.intuneConnected = false;
+        btn.classList.add('disconnected');
+        btn.title = data.ok
+          ? 'Intune not configured — edit lansweeper.config.json'
+          : 'Start server to enable Intune sync';
+      }
+    })
+    .catch(() => {
+      S.intuneConnected = false;
+      btn.classList.add('disconnected');
+      btn.title = 'Start server to enable Intune sync';
+    });
+}
+
+function syncIntune() {
+  if (!S.intuneConnected) {
+    toast('Server not reachable or Intune not configured', 'error');
+    return;
+  }
+  const btn      = document.getElementById('intune-sync-btn');
+  const statusEl = document.getElementById('intune-sync-status');
+  btn.classList.add('syncing');
+  statusEl.textContent = 'Syncing...';
+
+  fetch('/api/intune')
+    .then(r => r.json())
+    .then(data => {
+      btn.classList.remove('syncing');
+      if (!data.ok) {
+        statusEl.textContent = 'Error';
+        toast('Intune sync failed: ' + (data.error || 'unknown error'), 'error');
+        return;
+      }
+      const ts = new Date(data.synced).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      statusEl.textContent = 'Last: ' + ts;
+      const count = mergeIntune(data.devices || []);
+      saveState();
+      render();
+      toast(`Intune sync — ${count} devices merged`, 'success');
+    })
+    .catch(err => {
+      btn.classList.remove('syncing');
+      statusEl.textContent = 'Error';
+      toast('Intune sync error: ' + err.message, 'error');
+    });
+}
+
+function mergeIntune(devices) {
+  let merged = 0;
+  for (const floor of S.floors) {
+    for (const desk of (floor.items.desks || [])) {
+      if (!desk.hasPC) continue;
+      // Match by asset tag (device name) first, then serial number, then user display name
+      const match = devices.find(d => d.deviceName && desk.pc && d.deviceName.toLowerCase() === desk.pc.toLowerCase()) ||
+                    devices.find(d => d.serialNumber && desk.serialNumber && d.serialNumber === desk.serialNumber) ||
+                    devices.find(d => d.userDisplayName && desk.name && d.userDisplayName.toLowerCase() === desk.name.toLowerCase());
+      if (match) {
+        desk.intune = {
+          intuneId:        match.intuneId,
+          deviceName:      match.deviceName,
+          userDisplayName: match.userDisplayName,
+          userEmail:       match.userEmail,
+          os:              match.os,
+          osVersion:       match.osVersion,
+          manufacturer:    match.manufacturer,
+          model:           match.model,
+          serialNumber:    match.serialNumber,
+          complianceState: match.complianceState,
+          lastSync:        match.lastSync,
+          enrolled:        match.enrolled,
+          totalStorage:    match.totalStorage,
+          freeStorage:     match.freeStorage,
+          managementState: match.managementState,
+          autopilot:       match.autopilot,
+          azureAdId:       match.azureAdId,
         };
         merged++;
       }
@@ -3506,6 +3673,9 @@ document.getElementById('ls-sync-btn').addEventListener('click', syncLansweeper)
 // RingCentral sync button
 document.getElementById('rc-sync-btn').addEventListener('click', syncRingCentral);
 
+// Intune sync button
+document.getElementById('intune-sync-btn').addEventListener('click', syncIntune);
+
 // Edit mode toggle
 document.getElementById('edit-mode-btn').addEventListener('click', () => {
   S.editMode = !S.editMode;
@@ -3660,36 +3830,69 @@ function showReportCard(type, id) {
   if (type === 'desks') {
     title = item.name || 'Unknown User';
     subtitle = 'USER DESK';
-    if (item.pc || item.ip) sections.push({ title: 'WORKSTATION', rows: [
-      ['Asset Tag', item.pc],
-      ['IP Address', item.ip],
-      ['Operating System', item.os],
-      ['CPU', item.cpu],
-      ['RAM', item.ram],
-      ['Serial Number', item.serialNumber],
-      ['Department', item.department],
-      ['Location', item.location],
-      ['Last Seen', item.lastSeen ? new Date(item.lastSeen).toLocaleDateString() : null],
-    ]});
+    const it = item.intune;
+    if (it) {
+      sections.push({ title: 'COMPLIANCE', intuneCompliance: it });
+      sections.push({ title: 'WORKSTATION', rows: [
+        ['Device', it.deviceName || item.pc],
+        ['User', it.userDisplayName || item.name],
+        ['Email', it.userEmail],
+        ['Model', it.model],
+        ['OS', it.osVersion ? `${it.os} ${it.osVersion}` : it.os],
+        ['Serial', it.serialNumber || item.serialNumber],
+        ['IP Address', item.ip],
+        ['Location', item.location],
+      ]});
+    } else if (item.pc || item.ip) {
+      sections.push({ title: 'WORKSTATION', rows: [
+        ['Asset Tag', item.pc],
+        ['IP Address', item.ip],
+        ['Operating System', item.os],
+        ['CPU', item.cpu],
+        ['RAM', item.ram],
+        ['Serial Number', item.serialNumber],
+        ['Department', item.department],
+        ['Location', item.location],
+        ['Last Seen', item.lastSeen ? new Date(item.lastSeen).toLocaleDateString() : null],
+      ]});
+    }
     sections.push({ title: 'CONTACT', rows: [
       ['Extension', item.ext || null],
       ['Has Phone', item.hasPhone ? 'Yes' : 'No'],
     ]});
     sections.push({ title: 'INTUNE / AUTOPILOT', hash: item.hardwareHash });
   } else if (type === 'pcs') {
-    title = item.pc || item.name || 'Unknown PC';
+    const it2 = item.intune;
+    title = (it2 ? it2.deviceName : null) || item.pc || item.name || 'Unknown PC';
     subtitle = 'WORKSTATION';
-    sections.push({ title: 'IDENTITY', rows: [
-      ['User', item.name],
-      ['Asset Tag', item.pc],
-      ['IP Address', item.ip],
-    ]});
-    sections.push({ title: 'HARDWARE', rows: [
-      ['OS', item.os],
-      ['CPU', item.cpu],
-      ['RAM', item.ram],
-      ['Serial', item.serialNumber],
-    ]});
+    if (it2) {
+      sections.push({ title: 'COMPLIANCE', intuneCompliance: it2 });
+      sections.push({ title: 'IDENTITY', rows: [
+        ['User', it2.userDisplayName || item.name],
+        ['Email', it2.userEmail],
+        ['Device', it2.deviceName || item.pc],
+        ['IP Address', item.ip],
+      ]});
+      sections.push({ title: 'HARDWARE', rows: [
+        ['Model', it2.model],
+        ['OS', it2.osVersion ? `${it2.os} ${it2.osVersion}` : it2.os],
+        ['Serial', it2.serialNumber || item.serialNumber],
+        ['Mgmt State', it2.managementState],
+        ['Autopilot', it2.autopilot ? 'Yes' : 'No'],
+      ]});
+    } else {
+      sections.push({ title: 'IDENTITY', rows: [
+        ['User', item.name],
+        ['Asset Tag', item.pc],
+        ['IP Address', item.ip],
+      ]});
+      sections.push({ title: 'HARDWARE', rows: [
+        ['OS', item.os],
+        ['CPU', item.cpu],
+        ['RAM', item.ram],
+        ['Serial', item.serialNumber],
+      ]});
+    }
     sections.push({ title: 'INTUNE / AUTOPILOT', hash: item.hardwareHash });
   } else if (type === 'phones') {
     title = item.name || 'Desk Phone';
@@ -3805,6 +4008,43 @@ function showReportCard(type, id) {
           </div>
         </div>
         ${activeCallHtml}
+      </div>`;
+    }
+    if (sec.intuneCompliance !== undefined) {
+      const it = sec.intuneCompliance;
+      const state = (it.complianceState || 'unknown').toLowerCase();
+      const label = { compliant: 'COMPLIANT', noncompliant: 'NON-COMPLIANT', unknown: 'UNKNOWN', notapplicable: 'N/A' }[state] || state.toUpperCase();
+      const syncAgo = it.lastSync ? (() => {
+        const mins = Math.round((Date.now() - new Date(it.lastSync)) / 60000);
+        if (mins < 60)  return `${mins}m ago`;
+        if (mins < 1440) return `${Math.round(mins/60)}h ago`;
+        return `${Math.round(mins/1440)}d ago`;
+      })() : null;
+
+      // Storage bar
+      let storageBarHtml = '';
+      if (it.totalStorage && it.freeStorage) {
+        const totalGB = parseFloat(it.totalStorage);
+        const freeGB  = parseFloat(it.freeStorage);
+        const usedPct = totalGB > 0 ? Math.round((1 - freeGB / totalGB) * 100) : 0;
+        const barClass = usedPct > 90 ? 'crit' : usedPct > 75 ? 'warn' : '';
+        storageBarHtml = `
+          <div class="intune-storage-bar-wrap">
+            <div class="intune-storage-bar ${barClass}" style="width:${usedPct}%"></div>
+          </div>
+          <div class="intune-storage-label">${it.freeStorage} free of ${it.totalStorage} (${usedPct}% used)</div>`;
+      }
+
+      return `<div class="rc-section">
+        <div class="rc-section-title">${sec.title}</div>
+        <div class="intune-compliance">
+          <div class="intune-compliance-dot ${state}"></div>
+          <div>
+            <div class="intune-compliance-text ${state}">${label}</div>
+            ${syncAgo ? `<div class="intune-sync-time">Last sync ${syncAgo}</div>` : ''}
+          </div>
+        </div>
+        ${storageBarHtml}
       </div>`;
     }
     if (sec.jobs !== undefined) {
@@ -3954,6 +4194,7 @@ function init() {
   bindHoverListeners();
   checkLsStatus();
   checkRcStatus();
+  checkIntuneStatus();
 
   // New layer button
   document.getElementById('new-layer-btn').addEventListener('click', () => openLayerModal(null));

@@ -16,7 +16,7 @@ try {
   process.exit(1);
 }
 
-const { port, lansweeper, sync, typeMapping, ringcentral } = config;
+const { port, lansweeper, sync, typeMapping, ringcentral, intune } = config;
 const TOKEN_PLACEHOLDER  = 'YOUR_PERSONAL_ACCESS_TOKEN_HERE';
 const SITEID_PLACEHOLDER = 'YOUR_SITE_ID_HERE';
 const configuredToken  = lansweeper.token  && lansweeper.token  !== TOKEN_PLACEHOLDER;
@@ -395,6 +395,107 @@ async function runRcSync() {
   return result;
 }
 
+// ─── Intune / Microsoft Graph integration ─────────────────────────────────────
+
+const INTUNE_PLACEHOLDERS = ['YOUR_TENANT_ID_HERE', 'YOUR_APP_CLIENT_ID_HERE', 'YOUR_APP_CLIENT_SECRET_HERE'];
+const intuneConfigured = intune &&
+  intune.tenantId     && !INTUNE_PLACEHOLDERS.includes(intune.tenantId) &&
+  intune.clientId     && !INTUNE_PLACEHOLDERS.includes(intune.clientId) &&
+  intune.clientSecret && !INTUNE_PLACEHOLDERS.includes(intune.clientSecret);
+
+let intuneCache = null; // { result, expiresAt }
+
+async function intuneAuth() {
+  const body = new URLSearchParams({
+    grant_type:    'client_credentials',
+    client_id:     intune.clientId,
+    client_secret: intune.clientSecret,
+    scope:         'https://graph.microsoft.com/.default',
+  });
+  const res = await fetch(
+    `https://login.microsoftonline.com/${intune.tenantId}/oauth2/v2.0/token`,
+    { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw Object.assign(new Error(`Intune auth failed (HTTP ${res.status})`), {
+      hint: `Response: ${text.slice(0, 200)}. Verify tenantId, clientId, clientSecret in config.`,
+    });
+  }
+  const json = await res.json();
+  if (json.error) {
+    throw Object.assign(new Error(`Intune auth error: ${json.error_description || json.error}`), {
+      hint: 'Ensure the app has DeviceManagementManagedDevices.Read.All application permission and admin consent was granted.',
+    });
+  }
+  return json.access_token;
+}
+
+const INTUNE_SELECT = [
+  'id', 'deviceName', 'userDisplayName', 'userPrincipalName',
+  'operatingSystem', 'osVersion',
+  'manufacturer', 'model', 'serialNumber',
+  'complianceState', 'lastSyncDateTime', 'enrolledDateTime',
+  'totalStorageSpaceInBytes', 'freeStorageSpaceInBytes',
+  'managementState', 'autopilotEnrolled', 'azureADDeviceId',
+  'wiFiMacAddress', 'ethernetMacAddress',
+].join(',');
+
+async function fetchIntuneDevices(token) {
+  const all = [];
+  let url = `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$select=${INTUNE_SELECT}&$top=999`;
+
+  while (url) {
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw Object.assign(new Error(`Graph API error (HTTP ${res.status})`), { hint: text.slice(0, 200) });
+    }
+    const json = await res.json();
+    if (json.error) throw Object.assign(new Error(`Graph error: ${json.error.message}`), { hint: '' });
+    all.push(...(json.value || []));
+    url = json['@odata.nextLink'] || null;
+  }
+  return all;
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return null;
+  const gb = bytes / 1073741824;
+  return gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.round(bytes / 1048576)} MB`;
+}
+
+async function runIntuneSync() {
+  const token   = await intuneAuth();
+  const devices = await fetchIntuneDevices(token);
+
+  const result = devices.map(d => ({
+    intuneId:        d.id,
+    deviceName:      d.deviceName      || '',
+    userDisplayName: d.userDisplayName || '',
+    userEmail:       d.userPrincipalName || '',
+    os:              d.operatingSystem  || '',
+    osVersion:       d.osVersion        || '',
+    manufacturer:    d.manufacturer     || '',
+    model:           d.model            || '',
+    serialNumber:    d.serialNumber     || '',
+    complianceState: d.complianceState  || 'unknown',
+    lastSync:        d.lastSyncDateTime || null,
+    enrolled:        d.enrolledDateTime || null,
+    totalStorage:    formatBytes(d.totalStorageSpaceInBytes),
+    freeStorage:     formatBytes(d.freeStorageSpaceInBytes),
+    managementState: d.managementState  || '',
+    autopilot:       d.autopilotEnrolled || false,
+    azureAdId:       d.azureADDeviceId  || '',
+    wifiMac:         d.wiFiMacAddress   || '',
+    ethernetMac:     d.ethernetMacAddress || '',
+  }));
+
+  const cacheSeconds = (intune && intune.cacheSeconds) || 300;
+  intuneCache = { result, expiresAt: Date.now() + cacheSeconds * 1000 };
+  return result;
+}
+
 // ─── Express app ──────────────────────────────────────────────────────────────
 
 const app = express();
@@ -404,11 +505,12 @@ app.use(express.static(__dirname));
 // GET /api/status
 app.get('/api/status', (_req, res) => {
   res.json({
-    ok:              true,
-    configured:      isConfigured,
-    siteId:          configuredSiteId ? lansweeper.siteId : null,
-    apiUrl:          lansweeper.apiUrl,
-    rcConfigured:    !!rcConfigured,
+    ok:               true,
+    configured:       isConfigured,
+    siteId:           configuredSiteId ? lansweeper.siteId : null,
+    apiUrl:           lansweeper.apiUrl,
+    rcConfigured:     !!rcConfigured,
+    intuneConfigured: !!intuneConfigured,
   });
 });
 
@@ -430,6 +532,44 @@ app.get('/api/ringcentral', async (_req, res) => {
     res.json({ ok: true, synced: new Date().toISOString(), extensions: result });
   } catch (err) {
     console.error('[RC SYNC] Error:', err.message);
+    res.status(502).json({ ok: false, error: err.message, hint: err.hint || '' });
+  }
+});
+
+// GET /api/intune — return cached Intune device data or trigger fresh sync
+app.get('/api/intune', async (_req, res) => {
+  if (!intuneConfigured) {
+    return res.status(400).json({
+      ok:    false,
+      error: 'Intune is not configured.',
+      hint:  'Edit lansweeper.config.json and fill in intune.tenantId, clientId, and clientSecret.',
+    });
+  }
+  if (intuneCache && Date.now() < intuneCache.expiresAt) {
+    return res.json({ ok: true, synced: new Date(intuneCache.expiresAt).toISOString(), devices: intuneCache.result });
+  }
+  try {
+    const result = await runIntuneSync();
+    console.log(`[INTUNE SYNC] OK — ${result.length} devices fetched`);
+    res.json({ ok: true, synced: new Date().toISOString(), devices: result });
+  } catch (err) {
+    console.error('[INTUNE SYNC] Error:', err.message);
+    res.status(502).json({ ok: false, error: err.message, hint: err.hint || '' });
+  }
+});
+
+// POST /api/intune — force fresh sync
+app.post('/api/intune', async (_req, res) => {
+  if (!intuneConfigured) {
+    return res.status(400).json({ ok: false, error: 'Intune is not configured.' });
+  }
+  try {
+    intuneCache = null;
+    const result = await runIntuneSync();
+    console.log(`[INTUNE SYNC] Force OK — ${result.length} devices fetched`);
+    res.json({ ok: true, synced: new Date().toISOString(), devices: result });
+  } catch (err) {
+    console.error('[INTUNE SYNC] Error:', err.message);
     res.status(502).json({ ok: false, error: err.message, hint: err.hint || '' });
   }
 });
