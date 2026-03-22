@@ -585,7 +585,6 @@ body {
 .overlay.on {
   transform: translateY(0) scaleY(1);
   opacity: 1;
-  pointer-events: auto;
 }
 
 /* ── Item rain animation ─────────────────────────────── */
@@ -2064,7 +2063,7 @@ const DW = 82, DH = 50;
 
 function shell(floor, color, label, content) {
   const W = 980, H = floor.coordH || 660;
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" overflow="visible" style="pointer-events:none">
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" overflow="visible">
   <rect width="${W}" height="${H}" fill="${color}" opacity=".055" pointer-events="none"/>
   <rect width="${W}" height="5" fill="${color}" opacity=".75" rx="1" pointer-events="none"/>
   <text x="${W-12}" y="20" text-anchor="end" fill="${color}" font-size="9.5" font-weight="700"
