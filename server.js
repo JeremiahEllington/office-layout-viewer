@@ -16,7 +16,7 @@ try {
   process.exit(1);
 }
 
-const { port, lansweeper, sync, typeMapping } = config;
+const { port, lansweeper, sync, typeMapping, ringcentral } = config;
 const TOKEN_PLACEHOLDER  = 'YOUR_PERSONAL_ACCESS_TOKEN_HERE';
 const SITEID_PLACEHOLDER = 'YOUR_SITE_ID_HERE';
 const configuredToken  = lansweeper.token  && lansweeper.token  !== TOKEN_PLACEHOLDER;
@@ -283,6 +283,118 @@ async function runSync() {
   return result;
 }
 
+// ─── RingCentral integration ──────────────────────────────────────────────────
+
+const RC_PLACEHOLDERS = ['YOUR_RC_CLIENT_ID_HERE', 'YOUR_RC_CLIENT_SECRET_HERE', 'YOUR_RC_JWT_TOKEN_HERE'];
+const rcConfigured = ringcentral &&
+  ringcentral.clientId    && !RC_PLACEHOLDERS.includes(ringcentral.clientId) &&
+  ringcentral.clientSecret && !RC_PLACEHOLDERS.includes(ringcentral.clientSecret) &&
+  ringcentral.jwtToken    && !RC_PLACEHOLDERS.includes(ringcentral.jwtToken);
+
+const RC_SERVER = (ringcentral && ringcentral.server) || 'https://platform.ringcentral.com';
+
+let rcCache = null; // { result, expiresAt }
+
+async function rcAuth() {
+  const body = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    assertion:  ringcentral.jwtToken,
+  });
+  const creds = Buffer.from(`${ringcentral.clientId}:${ringcentral.clientSecret}`).toString('base64');
+  const res = await fetch(`${RC_SERVER}/restapi/oauth/token`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/x-www-form-urlencoded',
+      'Authorization': `Basic ${creds}`,
+    },
+    body: body.toString(),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw Object.assign(new Error(`RingCentral auth failed (HTTP ${res.status})`), {
+      hint: `Response: ${text.slice(0, 200)}. Check clientId, clientSecret and jwtToken in lansweeper.config.json.`,
+    });
+  }
+  const json = await res.json();
+  return json.access_token;
+}
+
+async function rcGet(token, path) {
+  const res = await fetch(`${RC_SERVER}/restapi/v1.0${path}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw Object.assign(new Error(`RingCentral API error on ${path} (HTTP ${res.status})`), {
+      hint: text.slice(0, 200),
+    });
+  }
+  return res.json();
+}
+
+async function rcFetchAll(token, path, recordsKey) {
+  const perPage = 1000;
+  let page = 1;
+  const all = [];
+  while (true) {
+    const json = await rcGet(token, `${path}${path.includes('?') ? '&' : '?'}perPage=${perPage}&page=${page}`);
+    const records = json[recordsKey] || json.records || [];
+    all.push(...records);
+    const nav = json.navigation || json.paging;
+    if (!nav || page >= (nav.totalPages || 1)) break;
+    page++;
+  }
+  return all;
+}
+
+async function runRcSync() {
+  const token = await rcAuth();
+
+  // 1. Fetch all user extensions
+  const extensions = await rcFetchAll(token, '/account/~/extension?type=User&status=Enabled', 'records');
+
+  // 2. Bulk presence (RC returns up to 1000 per call)
+  const presenceData = await rcFetchAll(token, '/account/~/presence?detailedTelephonyState=true', 'records');
+  const presenceById = {};
+  for (const p of presenceData) {
+    presenceById[p.extension?.id] = p;
+  }
+
+  // 3. Fetch device model per extension (parallel, throttled in batches of 10)
+  const deviceById = {};
+  for (let i = 0; i < extensions.length; i += 10) {
+    const batch = extensions.slice(i, i + 10);
+    await Promise.all(batch.map(async (ext) => {
+      try {
+        const devJson = await rcGet(token, `/account/~/extension/${ext.id}/device`);
+        const devices = devJson.records || [];
+        if (devices.length) deviceById[ext.id] = devices[0].model?.name || '';
+      } catch (_) { /* skip if no device */ }
+    }));
+  }
+
+  const result = extensions.map(ext => {
+    const p = presenceById[ext.id] || {};
+    return {
+      rcId:            String(ext.id),
+      ext:             ext.extensionNumber || '',
+      name:            [ext.contact?.firstName, ext.contact?.lastName].filter(Boolean).join(' '),
+      email:           ext.contact?.email || '',
+      department:      ext.contact?.department || '',
+      presence:        p.presenceStatus   || 'Offline',
+      userStatus:      p.userStatus       || 'Offline',
+      telephonyStatus: p.telephonyStatus  || 'NoCall',
+      dndStatus:       p.dndStatus        || 'TakeAllCalls',
+      activeCalls:     p.activeCalls      || [],
+      model:           deviceById[ext.id] || '',
+    };
+  });
+
+  const cacheSeconds = (ringcentral && ringcentral.cacheSeconds) || 60;
+  rcCache = { result, expiresAt: Date.now() + cacheSeconds * 1000 };
+  return result;
+}
+
 // ─── Express app ──────────────────────────────────────────────────────────────
 
 const app = express();
@@ -292,11 +404,50 @@ app.use(express.static(__dirname));
 // GET /api/status
 app.get('/api/status', (_req, res) => {
   res.json({
-    ok:         true,
-    configured: isConfigured,
-    siteId:     configuredSiteId ? lansweeper.siteId : null,
-    apiUrl:     lansweeper.apiUrl,
+    ok:              true,
+    configured:      isConfigured,
+    siteId:          configuredSiteId ? lansweeper.siteId : null,
+    apiUrl:          lansweeper.apiUrl,
+    rcConfigured:    !!rcConfigured,
   });
+});
+
+// GET /api/ringcentral — return cached RC data or trigger fresh sync
+app.get('/api/ringcentral', async (_req, res) => {
+  if (!rcConfigured) {
+    return res.status(400).json({
+      ok:    false,
+      error: 'RingCentral is not configured.',
+      hint:  'Edit lansweeper.config.json and fill in ringcentral.clientId, clientSecret, and jwtToken.',
+    });
+  }
+  if (rcCache && Date.now() < rcCache.expiresAt) {
+    return res.json({ ok: true, synced: new Date(rcCache.expiresAt).toISOString(), extensions: rcCache.result });
+  }
+  try {
+    const result = await runRcSync();
+    console.log(`[RC SYNC] OK — ${result.length} extensions fetched`);
+    res.json({ ok: true, synced: new Date().toISOString(), extensions: result });
+  } catch (err) {
+    console.error('[RC SYNC] Error:', err.message);
+    res.status(502).json({ ok: false, error: err.message, hint: err.hint || '' });
+  }
+});
+
+// POST /api/ringcentral — force fresh sync
+app.post('/api/ringcentral', async (_req, res) => {
+  if (!rcConfigured) {
+    return res.status(400).json({ ok: false, error: 'RingCentral is not configured.' });
+  }
+  try {
+    rcCache = null;
+    const result = await runRcSync();
+    console.log(`[RC SYNC] Force OK — ${result.length} extensions fetched`);
+    res.json({ ok: true, synced: new Date().toISOString(), extensions: result });
+  } catch (err) {
+    console.error('[RC SYNC] Error:', err.message);
+    res.status(502).json({ ok: false, error: err.message, hint: err.hint || '' });
+  }
 });
 
 // GET /api/config  (token redacted)

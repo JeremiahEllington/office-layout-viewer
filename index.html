@@ -1011,6 +1011,55 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 #ls-sync-status { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
 
+/* ── RingCentral Sync Button ─────────────────────────── */
+#rc-sync-btn { border-color: #f08040; color: #f08040; }
+#rc-sync-btn.disconnected { border-color: #f05888; color: #f05888; opacity: 0.6; cursor: not-allowed; }
+#rc-sync-btn.syncing #rc-sync-icon { display: inline-block; animation: spin 1s linear infinite; }
+#rc-sync-status { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
+
+/* ── Presence status ─────────────────────────────────── */
+.rc-presence { display: flex; align-items: center; gap: 8px; padding: 8px 0 6px; }
+.rc-presence-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+}
+.rc-presence-dot.Available  { background: #40d080; box-shadow: 0 0 6px #40d080; }
+.rc-presence-dot.Busy       { background: #f04040; box-shadow: 0 0 6px #f04040; }
+.rc-presence-dot.DnD        { background: #f08040; box-shadow: 0 0 4px #f08040; }
+.rc-presence-dot.Offline    { background: rgba(0,200,255,0.2); }
+.rc-presence-text {
+  font-size: 11px; font-family: 'Courier New', monospace;
+  font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+}
+.rc-presence-text.Available { color: #40d080; }
+.rc-presence-text.Busy      { color: #f04040; }
+.rc-presence-text.DnD       { color: #f08040; }
+.rc-presence-text.Offline   { color: rgba(0,200,255,0.3); }
+.rc-telephony {
+  font-size: 8px; color: rgba(0,200,255,0.5);
+  font-family: 'Courier New', monospace; letter-spacing: 1px;
+  text-transform: uppercase; margin-top: 1px;
+}
+.rc-active-call {
+  background: rgba(240,64,64,0.08);
+  border: 1px solid rgba(240,64,64,0.3);
+  padding: 7px 10px; margin-top: 4px;
+}
+.rc-active-call-label {
+  font-size: 7.5px; letter-spacing: 2.5px; text-transform: uppercase;
+  color: #f04040; font-family: 'Courier New', monospace;
+  margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+}
+.rc-active-call-label::before {
+  content: ''; display: inline-block;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #f04040; box-shadow: 0 0 4px #f04040;
+  animation: rc-blink 1s step-start infinite;
+}
+.rc-active-call-row {
+  font-size: 9px; color: rgba(200,240,255,0.8);
+  font-family: 'Courier New', monospace;
+}
+
 /* ── Staging Dock ────────────────────────────────────── */
 #staging-dock {
   display: none;
@@ -1392,6 +1441,10 @@ body {
       <span id="ls-sync-icon">⟳</span> LANSWEEPER
     </button>
     <span id="ls-sync-status"></span>
+    <button class="tb-btn" id="rc-sync-btn" title="Sync desk phones from RingCentral">
+      <span id="rc-sync-icon">⟳</span> RINGCENTRAL
+    </button>
+    <span id="rc-sync-status"></span>
     <button class="tb-btn" id="edit-mode-btn">Edit Mode</button>
   </div>
 
@@ -1573,11 +1626,19 @@ const NAMES = [
   'Uma Lee','Victor Walker','Wendy Hall','Xavier Allen'
 ];
 
+const SAMPLE_RC_DEPARTMENTS = ['Engineering','Engineering','Marketing','Finance','Engineering','IT','HR','Sales'];
+const SAMPLE_RC_PRESENCE    = ['Available','Available','Busy','Available','DnD','Offline','Available','Busy'];
+const SAMPLE_RC_TELEPHONY   = ['NoCall','NoCall','CallConnected','NoCall','NoCall','NoCall','NoCall','OnHold'];
+const SAMPLE_RC_MODELS      = ['Poly VVX 411','Poly VVX 311','Cisco 8841','Poly VVX 411','Cisco 8811','Poly VVX 311','Cisco 8841','Poly VVX 411'];
+
 function buildSampleDesks() {
   const arr = [];
   let di = 0;
   for (const y of ROW_Y) {
     for (const x of COL_X) {
+      const rcIdx = di % 8;
+      const nameParts = NAMES[di].split(' ');
+      const hasPhone = di % 6 !== 4;
       arr.push({
         id: generateId(),
         x, y,
@@ -1585,7 +1646,20 @@ function buildSampleDesks() {
         pc: `WS-${String(di+1).padStart(3,'0')}`,
         ext: `${101 + di}`,
         hasPC: di !== 7 && di !== 15,
-        hasPhone: di % 6 !== 4,
+        hasPhone,
+        rc: hasPhone ? {
+          rcId:            String(1000 + di),
+          ext:             `${101 + di}`,
+          email:           `${nameParts[0].toLowerCase()}.${nameParts[1].toLowerCase()}@company.com`,
+          department:      SAMPLE_RC_DEPARTMENTS[rcIdx],
+          presence:        SAMPLE_RC_PRESENCE[rcIdx],
+          telephonyStatus: SAMPLE_RC_TELEPHONY[rcIdx],
+          dndStatus:       SAMPLE_RC_PRESENCE[rcIdx] === 'DnD' ? 'DoNotAcceptAnyCalls' : 'TakeAllCalls',
+          model:           SAMPLE_RC_MODELS[rcIdx],
+          activeCalls:     SAMPLE_RC_TELEPHONY[rcIdx] !== 'NoCall'
+            ? [{ remoteNumber: '+1 555 ' + String(2000 + di).padStart(4,'0'), startTime: new Date(Date.now() - 4 * 60000).toISOString() }]
+            : [],
+        } : null,
       });
       di++;
     }
@@ -1816,6 +1890,95 @@ function syncLansweeper() {
       statusEl.textContent = 'Error';
       toast('Sync error: ' + err.message, 'error');
     });
+}
+
+// ═══════════════════════════════════════════════════════
+// RINGCENTRAL INTEGRATION
+// ═══════════════════════════════════════════════════════
+
+function checkRcStatus() {
+  const btn = document.getElementById('rc-sync-btn');
+  fetch('/api/status')
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok && data.rcConfigured) {
+        S.rcConnected = true;
+        btn.classList.remove('disconnected');
+        btn.title = 'Sync desk phones from RingCentral';
+      } else {
+        S.rcConnected = false;
+        btn.classList.add('disconnected');
+        btn.title = data.ok
+          ? 'RingCentral not configured — edit lansweeper.config.json'
+          : 'Start server to enable RingCentral sync';
+      }
+    })
+    .catch(() => {
+      S.rcConnected = false;
+      btn.classList.add('disconnected');
+      btn.title = 'Start server to enable RingCentral sync';
+    });
+}
+
+function syncRingCentral() {
+  if (!S.rcConnected) {
+    toast('Server not reachable or RingCentral not configured', 'error');
+    return;
+  }
+  const btn      = document.getElementById('rc-sync-btn');
+  const statusEl = document.getElementById('rc-sync-status');
+  btn.classList.add('syncing');
+  statusEl.textContent = 'Syncing...';
+
+  fetch('/api/ringcentral')
+    .then(r => r.json())
+    .then(data => {
+      btn.classList.remove('syncing');
+      if (!data.ok) {
+        statusEl.textContent = 'Error';
+        toast('RC sync failed: ' + (data.error || 'unknown error'), 'error');
+        return;
+      }
+      const ts = new Date(data.synced).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      statusEl.textContent = 'Last: ' + ts;
+      const count = mergeRingCentral(data.extensions || []);
+      saveState();
+      render();
+      toast(`RingCentral sync — ${count} extensions merged`, 'success');
+    })
+    .catch(err => {
+      btn.classList.remove('syncing');
+      statusEl.textContent = 'Error';
+      toast('RC sync error: ' + err.message, 'error');
+    });
+}
+
+function mergeRingCentral(extensions) {
+  let merged = 0;
+  for (const floor of S.floors) {
+    for (const desk of (floor.items.desks || [])) {
+      if (!desk.hasPhone) continue;
+      // Match by extension number first, then by name
+      const match = extensions.find(e => e.ext && e.ext === String(desk.ext)) ||
+                    extensions.find(e => e.name && desk.name &&
+                      e.name.toLowerCase() === desk.name.toLowerCase());
+      if (match) {
+        desk.rc = {
+          rcId:            match.rcId,
+          ext:             match.ext,
+          email:           match.email,
+          department:      match.department,
+          presence:        match.presence,
+          telephonyStatus: match.telephonyStatus,
+          dndStatus:       match.dndStatus,
+          model:           match.model,
+          activeCalls:     match.activeCalls || [],
+        };
+        merged++;
+      }
+    }
+  }
+  return merged;
 }
 
 function mergeAssets(data) {
@@ -3340,6 +3503,9 @@ document.getElementById('csv-template-btn').addEventListener('click', (e) => {
 // Lansweeper sync button
 document.getElementById('ls-sync-btn').addEventListener('click', syncLansweeper);
 
+// RingCentral sync button
+document.getElementById('rc-sync-btn').addEventListener('click', syncRingCentral);
+
 // Edit mode toggle
 document.getElementById('edit-mode-btn').addEventListener('click', () => {
   S.editMode = !S.editMode;
@@ -3528,11 +3694,25 @@ function showReportCard(type, id) {
   } else if (type === 'phones') {
     title = item.name || 'Desk Phone';
     subtitle = 'DESK PHONE';
-    sections.push({ title: 'DETAILS', rows: [
-      ['Extension', item.ext],
-      ['IP Address', item.ip],
-      ['Last Seen', item.lastSeen ? new Date(item.lastSeen).toLocaleDateString() : null],
-    ]});
+    const rc = item.rc;
+    if (rc) {
+      sections.push({ title: 'STATUS', rcPresence: rc });
+      sections.push({ title: 'USER', rows: [
+        ['Extension', rc.ext || item.ext],
+        ['Email',     rc.email],
+        ['Department',rc.department],
+      ]});
+      sections.push({ title: 'DEVICE', rows: [
+        ['Model',    rc.model],
+        ['IP Address', item.ip],
+      ]});
+    } else {
+      sections.push({ title: 'DETAILS', rows: [
+        ['Extension', item.ext],
+        ['IP Address', item.ip],
+        ['Last Seen', item.lastSeen ? new Date(item.lastSeen).toLocaleDateString() : null],
+      ]});
+    }
   } else if (type === 'printers') {
     title = item.label || 'Printer';
     subtitle = 'PRINTER';
@@ -3595,6 +3775,36 @@ function showReportCard(type, id) {
         <input class="rc-feed-url" type="text" value="${feedUrl}"
           placeholder="http://&lt;ip&gt;/video  or  /snapshot.jpg"
           onchange="window.setCameraFeedUrl('${sec.feed}', this.value)">
+      </div>`;
+    }
+    if (sec.rcPresence !== undefined) {
+      const rc = sec.rcPresence;
+      const presence = rc.presence || 'Offline';
+      const tStatus  = rc.telephonyStatus || 'NoCall';
+      const telephonyLabel = {
+        NoCall: '', CallConnected: 'ON A CALL', Ringing: 'RINGING',
+        OnHold: 'ON HOLD', ParkedCall: 'CALL PARKED',
+      }[tStatus] || tStatus.replace(/([A-Z])/g, ' $1').trim().toUpperCase();
+
+      const activeCalls = rc.activeCalls || [];
+      const activeCallHtml = activeCalls.length ? `
+        <div class="rc-active-call">
+          <div class="rc-active-call-label">ACTIVE CALL</div>
+          ${activeCalls.map(c => `
+            <div class="rc-active-call-row">${c.remoteNumber || 'Unknown'}</div>
+          `).join('')}
+        </div>` : '';
+
+      return `<div class="rc-section">
+        <div class="rc-section-title">${sec.title}</div>
+        <div class="rc-presence">
+          <div class="rc-presence-dot ${presence}"></div>
+          <div>
+            <div class="rc-presence-text ${presence}">${presence === 'DnD' ? 'DO NOT DISTURB' : presence}</div>
+            ${telephonyLabel ? `<div class="rc-telephony">${telephonyLabel}</div>` : ''}
+          </div>
+        </div>
+        ${activeCallHtml}
       </div>`;
     }
     if (sec.jobs !== undefined) {
@@ -3743,6 +3953,7 @@ function init() {
   render();
   bindHoverListeners();
   checkLsStatus();
+  checkRcStatus();
 
   // New layer button
   document.getElementById('new-layer-btn').addEventListener('click', () => openLayerModal(null));
