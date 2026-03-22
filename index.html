@@ -2639,6 +2639,9 @@ function render() {
 
   // ── Staging dock ──
   renderStagingDock();
+
+  // ── Attach hover listeners directly to each item after DOM rebuild ──
+  attachItemListeners();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3464,41 +3467,32 @@ window.copyHash = function copyHash(hash) {
 };
 
 function bindHoverListeners() {
-  // Use elementsFromPoint on mousemove — bypasses all CSS pointer-events
-  // inheritance issues with SVG-in-div stacking and 3D transforms.
-  let currentHoverKey = null;
-
-  const tiltEl = document.getElementById('tilt');
-  tiltEl.addEventListener('mousemove', (e) => {
-    const els = document.elementsFromPoint(e.clientX, e.clientY);
-    const g = els.find(el => el.matches && el.matches('.ov-item[data-id]'));
-
-    if (g) {
-      const key = g.dataset.type + '|' + g.dataset.id;
-      if (key !== currentHoverKey) {
-        currentHoverKey = key;
-        clearTimeout(rcHideTimer);
-        showReportCard(g.dataset.type, g.dataset.id);
-      }
-    } else {
-      if (currentHoverKey !== null) {
-        currentHoverKey = null;
-        hideReportCard();
-      }
-    }
-  });
-
-  tiltEl.addEventListener('mouseleave', () => {
-    currentHoverKey = null;
-    hideReportCard();
-  });
-
-  // Keep report card visible when mouse is over it
+  // Called once from init() — just handles the report card panel itself.
+  // Item hover listeners are attached per-element in attachItemListeners(),
+  // called after every render() because innerHTML rebuilds destroy old listeners.
   const rc = document.getElementById('report-card');
   if (rc) {
     rc.onmouseenter = () => clearTimeout(rcHideTimer);
     rc.onmouseleave = () => hideReportCard();
   }
+}
+
+function attachItemListeners() {
+  // Attach mouseenter/mouseleave directly to every .ov-item <g> element.
+  // Setting g.style.pointerEvents = 'all' via inline style is the highest-
+  // specificity CSS override — it beats any inherited pointer-events:none from
+  // the parent SVG root, regardless of browser handling of CSS inheritance in
+  // SVG contexts.
+  document.querySelectorAll('.ov-item[data-id]').forEach(g => {
+    g.style.pointerEvents = 'all';
+    g.onmouseenter = () => {
+      clearTimeout(rcHideTimer);
+      showReportCard(g.dataset.type, g.dataset.id);
+    };
+    g.onmouseleave = (e) => {
+      if (!g.contains(e.relatedTarget)) hideReportCard();
+    };
+  });
 }
 
 // ═══════════════════════════════════════════════════════
