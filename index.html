@@ -1083,96 +1083,130 @@ body {
 
 /* ── Report Card ────────────────────────────── */
 #report-card {
-  /* visual card — just styling + matching tilt */
-  width: 360px;
-  background: rgba(4, 13, 30, 0.97);
-  border: 1px solid rgba(0,200,255,0.35);
-  border-radius: 10px;
-  box-shadow:
-    0 0 0 1px rgba(0,200,255,0.08),
-    0 0 50px rgba(0,200,255,0.18),
-    0 50px 140px rgba(0,0,0,0.95);
-  overflow: hidden;
-  transform-origin: center top;
-  transform: rotateX(40deg);
-}
-/* Perspective wrapper — matches #persp exactly so card sits on same plane as map */
-#rc-persp {
+  /* Metal Gear Solid codec aesthetic — flat tactical readout panel */
   position: fixed;
-  right: -460px;
-  top: 22%;
+  right: -360px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 310px;
+  background: rgb(2, 6, 18);
+  border: 1px solid rgba(0,200,255,0.65);
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 1px rgba(0,200,255,0.07),
+    inset 3px 0 0 rgba(0,200,255,0.18),
+    -6px 0 60px rgba(0,0,0,0.95),
+    0 0 40px rgba(0,200,255,0.1);
   z-index: 300;
-  perspective: 1800px;
-  perspective-origin: 50% -10%;
-  transition: right 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: right 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
   pointer-events: none;
 }
-#rc-persp.visible {
-  right: 24px;
+/* Scanlines */
+#report-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0,200,255,0.018) 3px,
+    rgba(0,200,255,0.018) 4px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+/* Top accent strip */
+#report-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0,200,255,0.9) 30%, rgba(0,200,255,0.9) 70%, transparent);
+}
+#report-card.visible {
+  right: 0;
   pointer-events: all;
 }
 #rc-header {
-  background: rgba(0,200,255,0.08);
-  border-bottom: 1px solid rgba(0,200,255,0.2);
-  padding: 14px 16px;
+  background: rgba(0,200,255,0.06);
+  border-bottom: 2px solid rgba(0,200,255,0.35);
+  padding: 11px 14px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
+  position: relative;
 }
 #rc-type-icon {
-  width: 36px; height: 36px;
-  border-radius: 8px;
-  background: rgba(0,200,255,0.1);
-  border: 1px solid rgba(0,200,255,0.3);
+  width: 34px; height: 34px;
+  border-radius: 0;
+  background: rgba(0,200,255,0.08);
+  border: 1px solid rgba(0,200,255,0.5);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-#rc-type-icon svg { width: 18px; height: 18px; }
-#rc-title { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.2; }
-#rc-subtitle { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; margin-top: 1px; }
-#rc-body { padding: 12px 16px; overflow-y: auto; max-height: 52vh; }
+#rc-type-icon svg { width: 16px; height: 16px; }
+#rc-title {
+  font-size: 12px; font-weight: 700; color: var(--cyan);
+  font-family: 'Courier New', monospace;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+#rc-subtitle {
+  font-size: 9px; color: rgba(0,200,255,0.5);
+  font-family: 'Courier New', monospace;
+  letter-spacing: 2px;
+  margin-top: 2px;
+}
+#rc-body { padding: 10px 14px; overflow-y: auto; max-height: 70vh; }
 .rc-section {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 .rc-section-title {
-  font-size: 8px;
+  font-size: 7.5px;
   font-weight: 700;
-  letter-spacing: 3px;
+  letter-spacing: 3.5px;
   text-transform: uppercase;
-  color: var(--cyan);
-  margin-bottom: 7px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(0,200,255,0.12);
+  color: rgba(0,200,255,0.6);
+  font-family: 'Courier New', monospace;
+  margin-bottom: 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(0,200,255,0.2);
 }
 .rc-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
-  padding: 3px 0;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0,200,255,0.05);
 }
 .rc-label {
-  font-size: 9px;
-  color: var(--text-dim);
+  font-size: 8.5px;
+  color: rgba(0,200,255,0.45);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
+  font-family: 'Courier New', monospace;
   white-space: nowrap;
   flex-shrink: 0;
 }
 .rc-value {
-  font-size: 10px;
-  color: var(--text);
+  font-size: 9.5px;
+  color: rgba(200,240,255,0.9);
   text-align: right;
+  font-family: 'Courier New', monospace;
   word-break: break-all;
 }
-.rc-value.mono { font-family: monospace; font-size: 9px; }
-.rc-value.empty { color: var(--text-muted); font-style: italic; }
+.rc-value.mono { font-size: 9px; }
+.rc-value.empty { color: rgba(0,200,255,0.25); font-style: italic; }
 
-/* Intune hash row — full width, special treatment */
+/* Intune hash block */
 .rc-hash-block {
-  background: rgba(0,200,255,0.04);
-  border: 1px solid rgba(0,200,255,0.15);
-  border-radius: 6px;
+  background: rgba(0,200,255,0.03);
+  border: 1px solid rgba(0,200,255,0.2);
+  border-radius: 0;
   padding: 8px 10px;
   margin-top: 4px;
 }
@@ -1340,18 +1374,16 @@ body {
   </div>
 </div>
 
-<!-- Report Card — outer wrapper provides perspective matching the map -->
-<div id="rc-persp">
-  <div id="report-card">
-    <div id="rc-header">
-      <div id="rc-type-icon"></div>
-      <div>
-        <div id="rc-title"></div>
-        <div id="rc-subtitle"></div>
-      </div>
+<!-- Report Card -->
+<div id="report-card">
+  <div id="rc-header">
+    <div id="rc-type-icon"></div>
+    <div>
+      <div id="rc-title"></div>
+      <div id="rc-subtitle"></div>
     </div>
-    <div id="rc-body"></div>
   </div>
+  <div id="rc-body"></div>
 </div>
 
 <!-- Toast container -->
@@ -3320,7 +3352,7 @@ function showReportCard(type, id) {
   }
   if (!item) return;
 
-  const rc = document.getElementById('rc-persp');
+  const rc = document.getElementById('report-card');
   const iconEl = document.getElementById('rc-type-icon');
   const titleEl = document.getElementById('rc-title');
   const subtitleEl = document.getElementById('rc-subtitle');
@@ -3458,7 +3490,7 @@ function showReportCard(type, id) {
 
 function hideReportCard() {
   rcHideTimer = setTimeout(() => {
-    document.getElementById('rc-persp').classList.remove('visible');
+    document.getElementById('report-card').classList.remove('visible');
   }, 200);
 }
 
@@ -3515,7 +3547,7 @@ function bindHoverListeners() {
     });
   });
 
-  const rc = document.getElementById('rc-persp');
+  const rc = document.getElementById('report-card');
   if (rc) {
     rc.onmouseenter = () => clearTimeout(rcHideTimer);
     rc.onmouseleave = () => hideReportCard();
