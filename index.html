@@ -3466,9 +3466,44 @@ window.copyHash = function copyHash(hash) {
 };
 
 function bindHoverListeners() {
-  // Called once from init() — just handles the report card panel itself.
-  // Item hover listeners are attached per-element in attachItemListeners(),
-  // called after every render() because innerHTML rebuilds destroy old listeners.
+  // Pointer-events on SVG <g> elements inside rotateX() 3D transforms are
+  // unreliable. Instead: listen for mousemove on document, then call
+  // getBoundingClientRect() on each .ov-item to find which one the cursor
+  // is visually over. getBoundingClientRect() returns real screen coordinates
+  // after ALL transforms including 3D perspective — no pointer-events needed.
+  let currentKey = null;
+  let raf = null;
+
+  document.addEventListener('mousemove', (e) => {
+    const cx = e.clientX, cy = e.clientY;
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      raf = null;
+      const items = document.querySelectorAll('.ov-item[data-id]');
+      let hit = null;
+      // Iterate in reverse so topmost (last in DOM) wins when items overlap
+      for (let i = items.length - 1; i >= 0; i--) {
+        const g = items[i];
+        const r = g.getBoundingClientRect();
+        if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) {
+          hit = g;
+          break;
+        }
+      }
+      if (hit) {
+        const key = hit.dataset.type + '|' + hit.dataset.id;
+        if (key !== currentKey) {
+          currentKey = key;
+          clearTimeout(rcHideTimer);
+          showReportCard(hit.dataset.type, hit.dataset.id);
+        }
+      } else if (currentKey !== null) {
+        currentKey = null;
+        hideReportCard();
+      }
+    });
+  });
+
   const rc = document.getElementById('report-card');
   if (rc) {
     rc.onmouseenter = () => clearTimeout(rcHideTimer);
@@ -3477,21 +3512,8 @@ function bindHoverListeners() {
 }
 
 function attachItemListeners() {
-  // Attach mouseenter/mouseleave directly to every .ov-item <g> element.
-  // Setting g.style.pointerEvents = 'all' via inline style is the highest-
-  // specificity CSS override — it beats any inherited pointer-events:none from
-  // the parent SVG root, regardless of browser handling of CSS inheritance in
-  // SVG contexts.
-  document.querySelectorAll('.ov-item[data-id]').forEach(g => {
-    g.style.pointerEvents = 'all';
-    g.onmouseenter = () => {
-      clearTimeout(rcHideTimer);
-      showReportCard(g.dataset.type, g.dataset.id);
-    };
-    g.onmouseleave = (e) => {
-      if (!g.contains(e.relatedTarget)) hideReportCard();
-    };
-  });
+  // No-op: hover detection now uses getBoundingClientRect() in bindHoverListeners().
+  // This function is kept so the render() call site doesn't need to change.
 }
 
 // ═══════════════════════════════════════════════════════
