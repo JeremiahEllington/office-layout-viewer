@@ -952,6 +952,58 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* ── Custom Layer Buttons ────────────────────────────── */
+.sb-new-layer-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 9px; margin-top: 4px;
+  background: transparent;
+  border: 1px dashed var(--cyan-dim);
+  border-radius: 8px; color: var(--cyan-dim);
+  font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.sb-new-layer-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+.cl-edit-btn, .cl-del-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; padding: 0 3px; opacity: .4;
+  color: var(--text); transition: opacity .15s, color .15s;
+  flex-shrink: 0;
+}
+.cl-edit-btn:hover { opacity: 1; color: var(--cyan); }
+.cl-del-btn:hover  { opacity: 1; color: #f05888; }
+
+/* ── Layer Modal ─────────────────────────────────────── */
+.im-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,5,16,0.85);
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  backdrop-filter: blur(4px);
+}
+.im-modal-overlay.show { display: flex; }
+
+.lm-color-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.lm-color-swatch {
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; transition: border-color .12s, transform .12s;
+}
+.lm-color-swatch.selected { border-color: #fff; transform: scale(1.2); }
+.lm-icon-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.lm-icon-btn {
+  width: 34px; height: 34px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--panel-border); background: var(--panel);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); transition: border-color .12s, color .12s;
+}
+.lm-icon-btn svg { width: 16px; height: 16px; }
+.lm-icon-btn.selected { border-color: var(--cyan); color: var(--cyan); }
+.layer-modal-box { width: 380px; }
+
 /* ── Lansweeper Sync Button ──────────────────────────── */
 #ls-sync-btn { border-color: var(--cyan); color: var(--cyan); }
 #ls-sync-btn.disconnected { border-color: #f05888; color: #f05888; opacity: 0.6; cursor: not-allowed; }
@@ -1029,6 +1081,9 @@ body {
 <div id="sidebar">
   <div class="sb-title">Overlay Layers</div>
   <div id="filter-list"></div>
+  <div class="sb-section" id="custom-layers-label">CUSTOM LAYERS</div>
+  <div id="custom-layer-list"></div>
+  <button class="sb-new-layer-btn" id="new-layer-btn">＋ NEW LAYER</button>
   <button class="sb-clear" id="clear-btn">Clear All</button>
 </div>
 
@@ -1127,6 +1182,39 @@ body {
   </div>
 </div>
 
+<!-- Layer Modal -->
+<div id="layer-modal" class="im-modal-overlay">
+  <div class="im-box layer-modal-box">
+    <h3 id="layer-modal-title">NEW LAYER</h3>
+
+    <div class="af-field">
+      <label>Layer Name</label>
+      <input id="lm-name" type="text" placeholder="e.g. WiFi Access Points" maxlength="40"/>
+    </div>
+
+    <div class="af-field">
+      <label>Color</label>
+      <div id="lm-colors" class="lm-color-grid"></div>
+    </div>
+
+    <div class="af-field">
+      <label>Icon</label>
+      <div id="lm-icons" class="lm-icon-grid"></div>
+    </div>
+
+    <div class="af-field">
+      <label>Lansweeper Asset Types <span style="opacity:.5;font-size:9px">(comma-separated, case-insensitive)</span></label>
+      <input id="lm-lstypes" type="text" placeholder="e.g. access point, wireless ap, cisco aironet"/>
+    </div>
+
+    <div class="im-row">
+      <button class="im-btn" id="lm-save">Save Layer</button>
+      <button class="im-cancel" id="lm-cancel">Cancel</button>
+    </div>
+    <div class="im-err" id="lm-err"></div>
+  </div>
+</div>
+
 <!-- Toast container -->
 <div id="toast-container" style="position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px;align-items:flex-end;"></div>
 
@@ -1161,6 +1249,31 @@ const FILTERS = [
     icon: `<svg viewBox="0 0 16 16"><ellipse cx="7" cy="8" rx="4" ry="4"/><ellipse cx="7" cy="8" rx="1.8" ry="1.8"/><path d="M11 5.5l3.5-2.5v8L11 8.5z"/><rect x="1.5" y="7" width="3" height="2" rx="1"/></svg>`
   }
 ];
+
+// ═══════════════════════════════════════════════════════
+// CUSTOM LAYER ICONS & COLORS
+// ═══════════════════════════════════════════════════════
+
+const CUSTOM_ICONS = {
+  wifi:    `<svg viewBox="0 0 16 16"><path d="M8 12a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0-3.5a5 5 0 014.33 2.5l-1.5.87A3 3 0 008 10.5a3 3 0 00-2.83 1.37l-1.5-.87A5 5 0 018 8.5zm0-3.5a8.5 8.5 0 017.36 4.25l-1.5.87A6.5 6.5 0 008 6.5a6.5 6.5 0 00-5.86 3.62l-1.5-.87A8.5 8.5 0 018 5z" fill="currentColor"/></svg>`,
+  switch:  `<svg viewBox="0 0 16 16"><rect x="1" y="5" width="14" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4" cy="8" r="1" fill="currentColor"/><circle cx="7" cy="8" r="1" fill="currentColor"/><circle cx="10" cy="8" r="1" fill="currentColor"/><rect x="12" y="6.5" width="2" height="3" rx=".5" fill="currentColor"/></svg>`,
+  ups:     `<svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 6v4M6 8h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  av:      `<svg viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="12" width="6" height="2" fill="currentColor" rx=".5"/><path d="M6 7l4-2v4z" fill="currentColor"/></svg>`,
+  badge:   `<svg viewBox="0 0 16 16"><rect x="4" y="1" width="8" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="6" y="3" width="4" height="1.5" rx=".5" fill="currentColor"/><circle cx="8" cy="8" r="2" fill="currentColor"/><rect x="5.5" y="11" width="5" height="1" rx=".5" fill="currentColor"/></svg>`,
+  rack:    `<svg viewBox="0 0 16 16"><rect x="3" y="1" width="10" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="3" width="6" height="2" rx=".5" fill="currentColor" opacity=".7"/><rect x="5" y="6" width="6" height="2" rx=".5" fill="currentColor" opacity=".7"/><rect x="5" y="9" width="6" height="2" rx=".5" fill="currentColor" opacity=".7"/></svg>`,
+  speaker: `<svg viewBox="0 0 16 16"><path d="M3 6h2l4-3v10L5 10H3a1 1 0 01-1-1V7a1 1 0 011-1z" fill="currentColor"/><path d="M11 5.5a3 3 0 010 5M12.5 3.5a6 6 0 010 9" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>`,
+  fire:    `<svg viewBox="0 0 16 16"><path d="M8 1s3 3 2 6c1-1 1-3 1-3s3 2 2 5c0 2.5-2 4-3 4S4 11.5 4 9c0-2 1.5-3 2-3C5 9 7 10 7 10S5 7 8 1z" fill="currentColor"/></svg>`,
+  dot:     `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="2.5" fill="currentColor"/></svg>`,
+};
+
+const PRESET_COLORS = [
+  '#00c8ff','#e8b840','#50d890','#f07850',
+  '#b068f0','#f05888','#ff6b35','#00e5b0',
+  '#7eb8f7','#c8f050','#ff4d8c','#a0a0ff',
+];
+
+// Module-level state for layer modal
+let lmState = { editingId: null, selectedColor: PRESET_COLORS[0], selectedIcon: 'dot' };
 
 // ═══════════════════════════════════════════════════════
 // SAMPLE DATA (Floor 1)
@@ -1276,6 +1389,7 @@ function defaultState() {
     placingType: null,
     lsLastSync: null,
     lsConnected: false,
+    customLayers: [],
   };
 }
 
@@ -1300,6 +1414,8 @@ function loadState() {
           if (fl.coordH === undefined) fl.coordH = 660;
           if (fl.imageTransform === undefined) fl.imageTransform = { x: 0, y: 0, scale: 1 };
         }
+        // Migrate: ensure customLayers exists
+        if (!Array.isArray(parsed.customLayers)) parsed.customLayers = [];
         return parsed;
       }
     }
@@ -1512,6 +1628,40 @@ function mergeAssets(data) {
     }
   }
 
+  // ── Custom layers: filter from unknown assets by lsTypes ──
+  const unknown = data.unknown || [];
+  for (const layer of (S.customLayers || [])) {
+    if (!layer.lsTypes.length) continue;
+    const matches = unknown.filter(a =>
+      layer.lsTypes.includes((a.rawType || '').toLowerCase().trim())
+    );
+    const existingItems = (floor.items[layer.id] || []).slice();
+    floor.items[layer.id] = floor.items[layer.id] || [];
+
+    for (const asset of matches) {
+      const existing = existingItems.find(it => it.lsId === asset.lsId);
+      const savedPos = positions[asset.lsId];
+      if (existing) {
+        existing.name     = asset.name     || existing.name;
+        existing.ip       = asset.ip       || existing.ip;
+        existing.lastSeen = asset.lastSeen;
+        updated++;
+      } else {
+        floor.items[layer.id].push({
+          id:       generateId(),
+          lsId:     asset.lsId,
+          name:     asset.name || asset.deviceName || '',
+          ip:       asset.ip || '',
+          lastSeen: asset.lastSeen,
+          rawType:  asset.rawType,
+          x:        savedPos ? savedPos.x : null,
+          y:        savedPos ? savedPos.y : null,
+        });
+        added++;
+      }
+    }
+  }
+
   return { updated, added, skipped };
 }
 
@@ -1526,6 +1676,14 @@ function getUnpositioned() {
   }
   for (const c of floor.items.cameras) {
     if (c.x === null || c.x === undefined) result.push({ type: 'camera', item: c });
+  }
+  // Custom layers
+  for (const layer of (S.customLayers || [])) {
+    for (const item of (floor.items[layer.id] || [])) {
+      if (item.x === null || item.x === undefined) {
+        result.push({ type: layer.id, item, layerName: layer.name, color: layer.color });
+      }
+    }
   }
   return result;
 }
@@ -1547,13 +1705,14 @@ function renderStagingDock() {
 
   const typeColors = { desk: '#e8b840', printer: '#f07850', camera: '#f05888' };
 
-  for (const { type, item } of unpos) {
+  for (const { type, item, layerName, color: layerColor } of unpos) {
     const chip = document.createElement('div');
     chip.className = 'staging-chip';
     const label = item.name || item.label || item.lsId || type;
-    const color = typeColors[type] || 'var(--cyan)';
+    const color = layerColor || typeColors[type] || 'var(--cyan)';
+    const displayType = layerName || type;
     chip.innerHTML = `
-      <span class="chip-type" style="color:${color}">${type.toUpperCase()}</span>
+      <span class="chip-type" style="color:${color}">${displayType.toUpperCase()}</span>
       <span>${label}</span>
       <button class="chip-place" data-ls-id="${item.lsId || ''}" data-item-id="${item.id}" data-item-type="${type}">PLACE</button>
     `;
@@ -1567,8 +1726,10 @@ function renderStagingDock() {
       const itemType = btn.dataset.itemType;
       const lsId     = btn.dataset.lsId;
       const floor    = S.floors[S.currentFloor];
-      const arrKey   = itemType === 'desk' ? 'desks' : itemType === 'printer' ? 'printers' : 'cameras';
-      const item     = floor.items[arrKey].find(i => i.id === itemId);
+      // Support built-in keys and custom layer IDs
+      let arrKey = itemType === 'desk' ? 'desks' : itemType === 'printer' ? 'printers' : itemType === 'camera' ? 'cameras' : itemType;
+      const arr = floor.items[arrKey];
+      const item = arr ? arr.find(i => i.id === itemId) : null;
       if (!item) return;
 
       if (!S.editMode) {
@@ -1923,6 +2084,20 @@ function buildEditLayer(floor) {
         fill="#f05888" font-size="8" font-weight="700" font-family="'Segoe UI',sans-serif"
         style="pointer-events:none">C</text>`);
   }
+  // Custom layer items
+  for (const layer of (S.customLayers || [])) {
+    for (const item of (floor.items[layer.id] || [])) {
+      if (item.x === null || item.x === undefined) continue;
+      items.push(`<g data-type="${layer.id}" data-id="${item.id}" style="cursor:grab">
+        <circle cx="${item.x}" cy="${item.y}" r="12"
+          fill="${layer.color}" opacity=".9" stroke="white" stroke-width="1.5"/>
+        <text x="${item.x}" y="${item.y+4}" text-anchor="middle"
+          fill="white" font-size="8" font-weight="700" font-family="'Segoe UI',sans-serif"
+          style="pointer-events:none">${layer.name.substring(0,3).toUpperCase()}</text>
+      </g>`);
+    }
+  }
+
   return `<svg id="edit-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" overflow="visible">
   ${items.join('\n')}
 </svg>`;
@@ -1946,6 +2121,7 @@ const overlayEls = {};
 const filterBtnEls = {};
 let baseEl = null;
 let editOvEl = null;
+let customOverlayEls = {};
 
 function initDOM() {
   // Base map layer
@@ -1981,6 +2157,160 @@ function initDOM() {
   editOvEl = document.createElement('div');
   editOvEl.id = 'ov-edit';
   stackEl.appendChild(editOvEl);
+}
+
+function rebuildCustomOverlays() {
+  // Remove old custom overlay elements
+  for (const el of Object.values(customOverlayEls)) el.remove();
+  customOverlayEls = {};
+
+  // Create new ones (inserted before the edit layer)
+  for (const layer of (S.customLayers || [])) {
+    const el = document.createElement('div');
+    el.className = 'overlay';
+    el.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+    stackEl.insertBefore(el, editOvEl);
+    customOverlayEls[layer.id] = el;
+  }
+}
+
+function overlayCustom(layer, floor, settled = false) {
+  const c = layer.color;
+  const items = (floor.items[layer.id] || []).filter(it => it.x !== null && it.x !== undefined);
+  const iconSvg = CUSTOM_ICONS[layer.icon] || CUSTOM_ICONS.dot;
+
+  const content = items.map((item, i) => `
+    <g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.05).toFixed(2)}s"`}>
+      <circle cx="${item.x}" cy="${item.y}" r="14"
+        fill="rgba(0,0,0,.75)" stroke="${c}" stroke-width="1.5"/>
+      <g transform="translate(${item.x-8},${item.y-8})" style="color:${c}">${iconSvg}</g>
+      <text x="${item.x}" y="${item.y+26}" text-anchor="middle"
+        fill="${c}" font-size="7" font-weight="700" font-family="'Segoe UI',sans-serif"
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${item.name||''}</text>
+    </g>
+  `).join('');
+
+  return shell(floor, c, layer.name.toUpperCase(), content);
+}
+
+function buildCustomLayerBtn(layer) {
+  const btn = document.createElement('div');
+  btn.className = 'filter-btn custom-layer-btn';
+  btn.style.setProperty('--c', layer.color);
+  btn.dataset.layerId = layer.id;
+  btn.innerHTML = `
+    <span class="ficon" style="color:${layer.color}">${CUSTOM_ICONS[layer.icon] || CUSTOM_ICONS.dot}</span>
+    <span class="filter-btn-label">${layer.name}</span>
+    <span class="fbadge" id="badge-${layer.id}">0</span>
+    <button class="cl-edit-btn" title="Edit layer">✎</button>
+    <button class="cl-del-btn" title="Delete layer">×</button>
+  `;
+  btn.addEventListener('click', (e) => {
+    if (e.target.classList.contains('cl-edit-btn')) { openLayerModal(layer.id); return; }
+    if (e.target.classList.contains('cl-del-btn')) { deleteCustomLayer(layer.id); return; }
+    toggleFilter(layer.id);
+  });
+  return btn;
+}
+
+// ── Layer Modal ──
+
+function openLayerModal(layerId = null) {
+  lmState.editingId = layerId;
+
+  if (layerId) {
+    const layer = S.customLayers.find(l => l.id === layerId);
+    if (!layer) return;
+    lmState.selectedColor = layer.color;
+    lmState.selectedIcon  = layer.icon;
+    document.getElementById('layer-modal-title').textContent = 'EDIT LAYER';
+    document.getElementById('lm-name').value    = layer.name;
+    document.getElementById('lm-lstypes').value = layer.lsTypes.join(', ');
+  } else {
+    lmState.selectedColor = PRESET_COLORS[0];
+    lmState.selectedIcon  = 'dot';
+    document.getElementById('layer-modal-title').textContent = 'NEW LAYER';
+    document.getElementById('lm-name').value    = '';
+    document.getElementById('lm-lstypes').value = '';
+  }
+
+  document.getElementById('lm-err').textContent = '';
+
+  // Render color swatches
+  const colorGrid = document.getElementById('lm-colors');
+  colorGrid.innerHTML = '';
+  for (const color of PRESET_COLORS) {
+    const sw = document.createElement('div');
+    sw.className = 'lm-color-swatch' + (color === lmState.selectedColor ? ' selected' : '');
+    sw.style.background = color;
+    sw.dataset.color = color;
+    sw.addEventListener('click', () => {
+      lmState.selectedColor = color;
+      colorGrid.querySelectorAll('.lm-color-swatch').forEach(s => s.classList.toggle('selected', s.dataset.color === color));
+    });
+    colorGrid.appendChild(sw);
+  }
+
+  // Render icon buttons
+  const iconGrid = document.getElementById('lm-icons');
+  iconGrid.innerHTML = '';
+  for (const [key, svg] of Object.entries(CUSTOM_ICONS)) {
+    const ib = document.createElement('div');
+    ib.className = 'lm-icon-btn' + (key === lmState.selectedIcon ? ' selected' : '');
+    ib.dataset.icon = key;
+    ib.innerHTML = svg;
+    ib.addEventListener('click', () => {
+      lmState.selectedIcon = key;
+      iconGrid.querySelectorAll('.lm-icon-btn').forEach(b => b.classList.toggle('selected', b.dataset.icon === key));
+    });
+    iconGrid.appendChild(ib);
+  }
+
+  document.getElementById('layer-modal').classList.add('show');
+  document.getElementById('lm-name').focus();
+}
+
+function closeLayerModal() {
+  document.getElementById('layer-modal').classList.remove('show');
+}
+
+function saveCustomLayer() {
+  const name = document.getElementById('lm-name').value.trim();
+  if (!name) { document.getElementById('lm-err').textContent = 'Name is required.'; return; }
+  const color   = lmState.selectedColor || PRESET_COLORS[0];
+  const icon    = lmState.selectedIcon  || 'dot';
+  const lsTypes = document.getElementById('lm-lstypes').value
+    .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+
+  if (lmState.editingId) {
+    // Edit existing
+    const layer = S.customLayers.find(l => l.id === lmState.editingId);
+    if (layer) { layer.name = name; layer.color = color; layer.icon = icon; layer.lsTypes = lsTypes; }
+  } else {
+    // New layer
+    const layer = { id: generateId(), name, color, icon, lsTypes };
+    S.customLayers.push(layer);
+    // Initialize items on all floors
+    for (const fl of S.floors) {
+      if (!fl.items[layer.id]) fl.items[layer.id] = [];
+    }
+  }
+  closeLayerModal();
+  saveState();
+  rebuildCustomOverlays();
+  render();
+}
+
+function deleteCustomLayer(layerId) {
+  if (!confirm('Delete this layer and all its items?')) return;
+  S.customLayers = S.customLayers.filter(l => l.id !== layerId);
+  for (const fl of S.floors) delete fl.items[layerId];
+  // Remove from active filters
+  const idx = S.filters.indexOf(layerId);
+  if (idx >= 0) S.filters.splice(idx, 1);
+  saveState();
+  rebuildCustomOverlays();
+  render();
 }
 
 function updateStatusLayers() {
@@ -2097,6 +2427,35 @@ function render() {
     filterBtnEls[f.id].classList.toggle('active', isActive);
   }
 
+  // ── Custom layer overlays ──
+  for (const layer of (S.customLayers || [])) {
+    const el = customOverlayEls[layer.id];
+    if (!el) continue;
+
+    const isActive = S.filters.includes(layer.id);
+    const wasOn = el.classList.contains('on');
+    const settled = wasOn && isActive;
+
+    el.innerHTML = overlayCustom(layer, floor, settled);
+    el.classList.toggle('on', isActive);
+
+    // Update badge
+    const badge = document.getElementById(`badge-${layer.id}`);
+    const count = (floor.items[layer.id] || []).length;
+    if (badge) badge.textContent = count;
+  }
+
+  // ── Custom layer sidebar buttons ──
+  const customLayerListEl = document.getElementById('custom-layer-list');
+  if (customLayerListEl) {
+    customLayerListEl.innerHTML = '';
+    for (const layer of (S.customLayers || [])) {
+      const btn = buildCustomLayerBtn(layer);
+      btn.classList.toggle('active', S.filters.includes(layer.id));
+      customLayerListEl.appendChild(btn);
+    }
+  }
+
   // ── Edit layer ──
   if (S.editMode) {
     editOvEl.innerHTML = buildEditLayer(floor);
@@ -2162,8 +2521,8 @@ function bindEditLayer() {
 
   function getItemAndFloor(id, type) {
     const floor = S.floors[S.currentFloor];
-    const arr = floor.items[type];
-    return arr.find(x => x.id === id);
+    const arr = floor.items[type]; // works for both built-in keys and custom layer IDs
+    return arr ? arr.find(x => x.id === id) : null;
   }
 
   svg.addEventListener('pointerdown', (e) => {
@@ -2215,7 +2574,12 @@ function bindEditLayer() {
     dragging.setAttribute('transform', `translate(${dx}, ${dy})`);
 
     // Rebuild overlays as settled (no rain re-animation) during drag
-    overlayEls[dragType] && (overlayEls[dragType].innerHTML = OVERLAY_BUILDERS[dragType](floor, true));
+    if (overlayEls[dragType]) {
+      overlayEls[dragType].innerHTML = OVERLAY_BUILDERS[dragType](floor, true);
+    } else if (customOverlayEls[dragType]) {
+      const layer = S.customLayers.find(l => l.id === dragType);
+      if (layer) customOverlayEls[dragType].innerHTML = overlayCustom(layer, floor, true);
+    }
     if (dragType === 'desks') {
       overlayEls['pcs'] && (overlayEls['pcs'].innerHTML = OVERLAY_BUILDERS['pcs'](floor, true));
       overlayEls['phones'] && (overlayEls['phones'].innerHTML = OVERLAY_BUILDERS['phones'](floor, true));
@@ -2390,7 +2754,12 @@ function commitAdd() {
 function addFloor() {
   const name = prompt('New floor name:', `Floor ${S.floors.length + 1}`);
   if (!name) return;
-  S.floors.push(makeEmptyFloor(name.trim() || `Floor ${S.floors.length + 1}`));
+  const newFloor = makeEmptyFloor(name.trim() || `Floor ${S.floors.length + 1}`);
+  // Initialize custom layer item arrays on the new floor
+  for (const layer of (S.customLayers || [])) {
+    newFloor.items[layer.id] = [];
+  }
+  S.floors.push(newFloor);
   S.currentFloor = S.floors.length - 1;
   saveState();
   render();
@@ -2425,8 +2794,10 @@ function importJSONText(text) {
     }
     parsed.editMode = false;
     parsed.placingType = null;
+    if (!Array.isArray(parsed.customLayers)) parsed.customLayers = [];
     S = parsed;
     saveState();
+    rebuildCustomOverlays();
     render();
     closeImportModal();
   } catch(e) {
@@ -2749,6 +3120,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     hideAddForm();
     closeImportModal();
+    closeLayerModal();
     if (S.placingType) { S.placingType = null; render(); }
   }
 });
@@ -2765,8 +3137,19 @@ document.getElementById('import-modal').addEventListener('click', (e) => {
 function init() {
   initDOM();
   S = loadState() || defaultState();
+  rebuildCustomOverlays();
   render();
   checkLsStatus();
+
+  // New layer button
+  document.getElementById('new-layer-btn').addEventListener('click', () => openLayerModal(null));
+
+  // Layer modal save / cancel
+  document.getElementById('lm-save').addEventListener('click', saveCustomLayer);
+  document.getElementById('lm-cancel').addEventListener('click', closeLayerModal);
+  document.getElementById('layer-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('layer-modal')) closeLayerModal();
+  });
 
   // Live clock
   setInterval(() => {
