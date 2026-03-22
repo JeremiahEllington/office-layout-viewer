@@ -2109,23 +2109,22 @@ function bindEditLayer() {
     item.x = startItemPos.x + dx;
     item.y = startItemPos.y + dy;
 
-    // Re-render edit layer only (fast path)
+    // Move dragged element directly — do NOT rebuild innerHTML
+    // (rebuilding destroys the SVG element that holds pointer capture)
+    dragging.setAttribute('transform', `translate(${dx}, ${dy})`);
+
+    // Safe to rebuild the overlay layers (they don't have pointer capture)
     const floor = S.floors[S.currentFloor];
-    editOvEl.innerHTML = buildEditLayer(floor);
-    bindEditLayer(); // re-bind after innerHTML update
-    // Re-render relevant overlay too
     overlayEls[dragType] && (overlayEls[dragType].innerHTML = OVERLAY_BUILDERS[dragType](floor));
     if (dragType === 'desks') {
       overlayEls['pcs'] && (overlayEls['pcs'].innerHTML = OVERLAY_BUILDERS['pcs'](floor));
       overlayEls['phones'] && (overlayEls['phones'].innerHTML = OVERLAY_BUILDERS['phones'](floor));
     }
-    // exit — we've re-bound so this handler is now on old svg
   });
 
   svg.addEventListener('pointerup', (e) => {
     if (!dragging) return;
     const item = getItemAndFloor(dragId, dragType);
-    // Save lsId position if present
     if (item && item.lsId) {
       savePosition(item.lsId, item.x, item.y);
     }
@@ -2136,6 +2135,7 @@ function bindEditLayer() {
     startItemPos = null;
     svg.releasePointerCapture(e.pointerId);
     saveState();
+    render(); // full re-render cleans up the translate transform
   });
 
   svg.addEventListener('contextmenu', (e) => {
