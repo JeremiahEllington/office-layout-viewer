@@ -1292,6 +1292,57 @@ body {
   letter-spacing: 0.5px;
 }
 .rc-feed-url:focus { border-color: rgba(0,200,255,0.5); }
+
+/* Printer job queue */
+.rc-queue-empty {
+  font-size: 9px; color: rgba(0,200,255,0.25);
+  font-family: 'Courier New', monospace;
+  letter-spacing: 2px; padding: 8px 0;
+  text-align: center;
+}
+.rc-job {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  gap: 6px;
+  align-items: start;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(0,200,255,0.05);
+}
+.rc-job:last-child { border-bottom: none; }
+.rc-job-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.rc-job-dot.printing { background: #40d080; box-shadow: 0 0 4px #40d080; }
+.rc-job-dot.pending  { background: #f0c040; }
+.rc-job-dot.error    { background: #f04040; box-shadow: 0 0 4px #f04040; }
+.rc-job-info { min-width: 0; }
+.rc-job-name {
+  font-size: 9px; color: rgba(200,240,255,0.9);
+  font-family: 'Courier New', monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rc-job-user {
+  font-size: 7.5px; color: rgba(0,200,255,0.45);
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.5px; margin-top: 1px;
+}
+.rc-job-meta {
+  text-align: right; flex-shrink: 0;
+}
+.rc-job-pages {
+  font-size: 8px; color: rgba(0,200,255,0.5);
+  font-family: 'Courier New', monospace;
+}
+.rc-job-status {
+  font-size: 7px; letter-spacing: 1px; text-transform: uppercase;
+  font-family: 'Courier New', monospace; margin-top: 1px;
+}
+.rc-job-status.printing { color: #40d080; }
+.rc-job-status.pending  { color: #f0c040; }
+.rc-job-status.error    { color: #f04040; }
 </style>
 </head>
 
@@ -1544,10 +1595,19 @@ function buildSampleDesks() {
 
 function buildSamplePrinters() {
   return [
-    { id: generateId(), x: 300, y: 265, label: 'PRN-001', model: 'HP LaserJet Pro' },
-    { id: generateId(), x: 300, y: 465, label: 'PRN-002', model: 'HP LaserJet Pro' },
-    { id: generateId(), x: 630, y: 265, label: 'PRN-003', model: 'Xerox C235'      },
-    { id: generateId(), x: 630, y: 465, label: 'PRN-004', model: 'Xerox C235'      },
+    { id: generateId(), x: 300, y: 265, label: 'PRN-001', model: 'HP LaserJet Pro', ip: '10.0.1.21', printJobs: [
+        { name: 'Q3 Budget Report.pdf',   user: 'Alice Johnson',  pages: 14, status: 'printing' },
+        { name: 'Meeting Agenda.docx',    user: 'Bob Martinez',   pages: 2,  status: 'pending'  },
+        { name: 'Invoice #4821.pdf',      user: 'Carol White',    pages: 1,  status: 'pending'  },
+    ]},
+    { id: generateId(), x: 300, y: 465, label: 'PRN-002', model: 'HP LaserJet Pro', ip: '10.0.1.22', printJobs: [] },
+    { id: generateId(), x: 630, y: 265, label: 'PRN-003', model: 'Xerox C235',       ip: '10.0.1.23', printJobs: [
+        { name: 'Floor Plan v3.pdf',      user: 'David Kim',      pages: 4,  status: 'error'    },
+        { name: 'HR Policy Update.docx',  user: 'Eve Torres',     pages: 8,  status: 'pending'  },
+    ]},
+    { id: generateId(), x: 630, y: 465, label: 'PRN-004', model: 'Xerox C235',       ip: '10.0.1.24', printJobs: [
+        { name: 'Onboarding Packet.pdf',  user: 'Frank Lee',      pages: 22, status: 'printing' },
+    ]},
   ];
 }
 
@@ -3482,6 +3542,7 @@ function showReportCard(type, id) {
       ['Location', item.location],
       ['Last Seen', item.lastSeen ? new Date(item.lastSeen).toLocaleDateString() : null],
     ]});
+    sections.push({ title: 'PRINT QUEUE', jobs: item.printJobs || [] });
   } else if (type === 'network') {
     title = `Network Drop`;
     subtitle = (item.t || 'FLOOR').toUpperCase() + ' DROP';
@@ -3534,6 +3595,27 @@ function showReportCard(type, id) {
         <input class="rc-feed-url" type="text" value="${feedUrl}"
           placeholder="http://&lt;ip&gt;/video  or  /snapshot.jpg"
           onchange="window.setCameraFeedUrl('${sec.feed}', this.value)">
+      </div>`;
+    }
+    if (sec.jobs !== undefined) {
+      const jobs = sec.jobs;
+      return `<div class="rc-section">
+        <div class="rc-section-title">${sec.title}${jobs.length ? ` <span style="color:rgba(0,200,255,0.4)">(${jobs.length})</span>` : ''}</div>
+        ${jobs.length === 0
+          ? `<div class="rc-queue-empty">QUEUE EMPTY</div>`
+          : jobs.map(j => `
+            <div class="rc-job">
+              <div class="rc-job-dot ${j.status}"></div>
+              <div class="rc-job-info">
+                <div class="rc-job-name">${j.name}</div>
+                <div class="rc-job-user">${j.user}</div>
+              </div>
+              <div class="rc-job-meta">
+                <div class="rc-job-pages">${j.pages}p</div>
+                <div class="rc-job-status ${j.status}">${j.status}</div>
+              </div>
+            </div>`).join('')
+        }
       </div>`;
     }
     if (sec.hash !== undefined) {
