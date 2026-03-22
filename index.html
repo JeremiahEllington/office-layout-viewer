@@ -1231,6 +1231,24 @@ body {
   gap: 11px;
   position: relative;
 }
+#rc-header-btns {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+}
+#rc-pin-btn, #rc-close-btn {
+  background: none; border: 1px solid rgba(0,200,255,0.25);
+  color: rgba(0,200,255,0.5); cursor: pointer;
+  font-size: 11px; width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .12s, color .12s;
+  padding: 0;
+}
+#rc-pin-btn:hover, #rc-close-btn:hover {
+  border-color: rgba(0,200,255,0.7); color: var(--cyan);
+}
+#rc-pin-btn.pinned {
+  border-color: var(--cyan); color: var(--cyan);
+  background: rgba(0,200,255,0.12);
+}
 #rc-type-icon {
   width: 34px; height: 34px;
   border-radius: 0;
@@ -1385,6 +1403,23 @@ body {
   letter-spacing: 0.5px;
 }
 .rc-feed-url:focus { border-color: rgba(0,200,255,0.5); }
+.rc-feed-url-row {
+  display: flex; gap: 4px; margin-bottom: 4px;
+}
+.rc-feed-url-row .rc-feed-url { margin-bottom: 0; flex: 1; }
+.rc-feed-fullscreen {
+  width: 28px; height: 28px; flex-shrink: 0;
+  background: rgba(0,200,255,0.06);
+  border: 1px solid rgba(0,200,255,0.25);
+  color: rgba(0,200,255,0.6); cursor: pointer;
+  font-size: 13px; display: flex; align-items: center; justify-content: center;
+  transition: border-color .12s, color .12s; padding: 0;
+}
+.rc-feed-fullscreen:hover { border-color: var(--cyan); color: var(--cyan); }
+.rc-feed-creds {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 4px;
+}
+.rc-feed-creds .rc-feed-url { margin-bottom: 0; }
 
 /* Printer job queue */
 .rc-queue-empty {
@@ -1590,9 +1625,13 @@ body {
 <div id="report-card">
   <div id="rc-header">
     <div id="rc-type-icon"></div>
-    <div>
+    <div style="flex:1;min-width:0">
       <div id="rc-title"></div>
       <div id="rc-subtitle"></div>
+    </div>
+    <div id="rc-header-btns">
+      <button id="rc-pin-btn" title="Pin card open" onclick="window.toggleRcPin()">📌</button>
+      <button id="rc-close-btn" title="Close" onclick="window.closeRcCard()">✕</button>
     </div>
   </div>
   <div id="rc-body"></div>
@@ -3787,6 +3826,7 @@ document.getElementById('import-modal').addEventListener('click', (e) => {
 // ═══════════════════════════════════════════════════════
 
 let rcHideTimer = null;
+let rcPinned = false;
 
 function showReportCard(type, id) {
   clearTimeout(rcHideTimer);
@@ -3961,23 +4001,37 @@ function showReportCard(type, id) {
   bodyEl.innerHTML = sections.map(sec => {
     if (sec.feed !== undefined) {
       const cam = floor.items.cameras.find(c => c.id === sec.feed);
-      const feedUrl = cam?.feedUrl || '';
+      const feedUrl  = cam?.feedUrl  || '';
+      const feedUser = cam?.feedUser || '';
+      const feedPass = cam?.feedPass || '';
+      const activeSrc = buildFeedSrc(feedUrl, feedUser, feedPass);
       return `<div class="rc-section">
         <div class="rc-section-title">
           ${sec.title}
-          ${feedUrl ? '<span class="rc-live-badge">● REC</span>' : ''}
+          ${activeSrc ? '<span class="rc-live-badge">● REC</span>' : ''}
         </div>
-        <div class="rc-feed-wrap">
-          ${feedUrl
-            ? `<img class="rc-feed-img" src="${feedUrl}" alt="camera feed"
+        <div class="rc-feed-wrap" id="rc-feed-wrap-${sec.feed}">
+          ${activeSrc
+            ? `<img class="rc-feed-img" src="${activeSrc}" alt="camera feed"
                  onerror="this.classList.add('rc-feed-err')">`
             : `<div class="rc-feed-nosignal">NO SIGNAL</div>`
           }
           <div class="rc-feed-scanlines"></div>
+          ${activeSrc ? `<button class="rc-feed-fullscreen" title="Fullscreen" onclick="window.camFullscreen('${sec.feed}')">⛶</button>` : ''}
         </div>
-        <input class="rc-feed-url" type="text" value="${feedUrl}"
-          placeholder="http://&lt;ip&gt;/video  or  /snapshot.jpg"
-          onchange="window.setCameraFeedUrl('${sec.feed}', this.value)">
+        <div class="rc-feed-creds">
+          <input class="rc-feed-url" type="text" value="${feedUser}"
+            placeholder="Username (optional)"
+            onchange="window.setCameraCredential('${sec.feed}','user',this.value)">
+          <input class="rc-feed-url" type="password" value="${feedPass}"
+            placeholder="Password (optional)"
+            onchange="window.setCameraCredential('${sec.feed}','pass',this.value)">
+        </div>
+        <div class="rc-feed-url-row">
+          <input class="rc-feed-url" type="text" value="${feedUrl}"
+            placeholder="http://&lt;ip&gt;/video  or  /snapshot.jpg"
+            onchange="window.setCameraFeedUrl('${sec.feed}', this.value)">
+        </div>
       </div>`;
     }
     if (sec.rcPresence !== undefined) {
@@ -4103,9 +4157,37 @@ function showReportCard(type, id) {
 }
 
 function hideReportCard() {
+  // Don't hide if pinned or if the user has focus inside the card (e.g. typing in an input)
+  const rc = document.getElementById('report-card');
+  if (rcPinned) return;
+  if (rc && rc.contains(document.activeElement) && document.activeElement !== document.body) return;
   rcHideTimer = setTimeout(() => {
-    document.getElementById('report-card').classList.remove('visible');
+    if (rcPinned) return;
+    if (rc && rc.contains(document.activeElement) && document.activeElement !== document.body) return;
+    rc.classList.remove('visible');
   }, 200);
+}
+
+window.toggleRcPin = function() {
+  rcPinned = !rcPinned;
+  document.getElementById('rc-pin-btn').classList.toggle('pinned', rcPinned);
+};
+
+window.closeRcCard = function() {
+  rcPinned = false;
+  document.getElementById('rc-pin-btn').classList.remove('pinned');
+  document.getElementById('report-card').classList.remove('visible');
+};
+
+function buildFeedSrc(url, user, pass) {
+  if (!url) return '';
+  if (!user && !pass) return url;
+  try {
+    const u = new URL(url);
+    if (user) u.username = encodeURIComponent(user);
+    if (pass) u.password = encodeURIComponent(pass);
+    return u.href;
+  } catch { return url; }
 }
 
 window.setCameraFeedUrl = function(id, url) {
@@ -4115,6 +4197,30 @@ window.setCameraFeedUrl = function(id, url) {
   cam.feedUrl = url.trim();
   saveState();
   showReportCard('cameras', id);
+};
+
+window.setCameraCredential = function(id, field, value) {
+  const floor = S.floors[S.currentFloor];
+  const cam = floor.items.cameras.find(c => c.id === id);
+  if (!cam) return;
+  if (field === 'user') cam.feedUser = value;
+  if (field === 'pass') cam.feedPass = value;
+  saveState();
+  // Reload feed src without full re-render so inputs keep focus
+  const wrap = document.getElementById(`rc-feed-wrap-${id}`);
+  if (wrap) {
+    const img = wrap.querySelector('.rc-feed-img');
+    const src = buildFeedSrc(cam.feedUrl || '', cam.feedUser || '', cam.feedPass || '');
+    if (img && src) img.src = src;
+  }
+};
+
+window.camFullscreen = function(id) {
+  const wrap = document.getElementById(`rc-feed-wrap-${id}`);
+  const img = wrap && wrap.querySelector('.rc-feed-img');
+  const target = img || wrap;
+  if (!target) return;
+  (target.requestFullscreen || target.webkitRequestFullscreen || target.mozRequestFullScreen || (() => {})).call(target);
 };
 
 window.copyHash = function copyHash(hash) {
@@ -4161,6 +4267,8 @@ function bindHoverListeners() {
         if (key !== currentKey) {
           currentKey = key;
           clearTimeout(rcHideTimer);
+          rcPinned = false;
+          document.getElementById('rc-pin-btn')?.classList.remove('pinned');
           showReportCard(hit.dataset.type, hit.dataset.id);
         }
       } else if (currentKey !== null) {
@@ -4174,6 +4282,12 @@ function bindHoverListeners() {
   if (rc) {
     rc.onmouseenter = () => clearTimeout(rcHideTimer);
     rc.onmouseleave = () => hideReportCard();
+    rc.addEventListener('focusin', () => {
+      // Auto-pin when user focuses an input inside the card
+      clearTimeout(rcHideTimer);
+      rcPinned = true;
+      document.getElementById('rc-pin-btn')?.classList.add('pinned');
+    });
   }
 }
 
