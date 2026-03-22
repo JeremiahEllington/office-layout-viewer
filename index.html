@@ -1768,11 +1768,11 @@ function shell(floor, color, label, content) {
 </svg>`;
 }
 
-function overlayDesks(floor) {
+function overlayDesks(floor, settled = false) {
   const c = '#e8b840';
   const desks = floor.items.desks.filter(d => d.x !== null && d.x !== undefined);
   return shell(floor, c, 'USER DESKS', desks.map((d, i) => `
-    <g class="rain-item" style="animation-delay:${(i*0.04).toFixed(2)}s">
+    <g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.04).toFixed(2)}s"`}>
       <rect x="${d.x-2}" y="${d.y-2}" width="${DW+4}" height="${DH+4}" rx="5"
         fill="rgba(232,184,64,.12)" stroke="${c}" stroke-width="1.6"/>
       <text x="${d.x+DW/2}" y="${d.y+DH/2-3}" text-anchor="middle"
@@ -1785,11 +1785,11 @@ function overlayDesks(floor) {
   `).join(''));
 }
 
-function overlayPCs(floor) {
+function overlayPCs(floor, settled = false) {
   const c = '#48a8f0';
   const desks = floor.items.desks.filter(d => d.hasPC && d.x !== null && d.x !== undefined);
   return shell(floor, c, 'PCs / WORKSTATIONS', desks.map((d, i) => `
-    <g class="rain-item" style="animation-delay:${(i*0.04).toFixed(2)}s">
+    <g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.04).toFixed(2)}s"`}>
       <rect x="${d.x+5}" y="${d.y+5}" width="32" height="24" rx="2"
         fill="rgba(10,20,40,.88)" stroke="${c}" stroke-width="1.3"/>
       <rect x="${d.x+9}" y="${d.y+29}" width="24" height="3" rx="1" fill="${c}" opacity=".6"/>
@@ -1801,11 +1801,11 @@ function overlayPCs(floor) {
   `).join(''));
 }
 
-function overlayPhones(floor) {
+function overlayPhones(floor, settled = false) {
   const c = '#50d890';
   const desks = floor.items.desks.filter(d => d.hasPhone && d.x !== null && d.x !== undefined);
   return shell(floor, c, 'DESK PHONES', desks.map((d, i) => `
-    <g class="rain-item" style="animation-delay:${(i*0.04).toFixed(2)}s">
+    <g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.04).toFixed(2)}s"`}>
       <rect x="${d.x+54}" y="${d.y+5}" width="22" height="33" rx="5"
         fill="rgba(10,30,20,.88)" stroke="${c}" stroke-width="1.3"/>
       <rect x="${d.x+57}" y="${d.y+29}" width="16" height="4" rx="2" fill="${c}" opacity=".4"/>
@@ -1817,11 +1817,11 @@ function overlayPhones(floor) {
   `).join(''));
 }
 
-function overlayPrinters(floor) {
+function overlayPrinters(floor, settled = false) {
   const c = '#f07850';
   const printers = floor.items.printers.filter(p => p.x !== null && p.x !== undefined);
   return shell(floor, c, 'PRINTERS', printers.map((p, i) => `
-    <g class="rain-item" style="animation-delay:${(i*0.08).toFixed(2)}s">
+    <g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.08).toFixed(2)}s"`}>
       <rect x="${p.x-30}" y="${p.y-22}" width="60" height="44" rx="5"
         fill="rgba(40,15,8,.88)" stroke="${c}" stroke-width="1.5"/>
       <rect x="${p.x-24}" y="${p.y-17}" width="48" height="8" rx="1" fill="${c}" opacity=".25"/>
@@ -1836,7 +1836,7 @@ function overlayPrinters(floor) {
   `).join(''));
 }
 
-function overlayNetwork(floor) {
+function overlayNetwork(floor, settled = false) {
   const c = '#b068f0';
   const netDrops = floor.items.network;
   const patchStart = netDrops.findIndex(d => d.t === 'patch');
@@ -1846,7 +1846,7 @@ function overlayNetwork(floor) {
     const label = d.t === 'patch'
       ? `<text x="${d.x}" y="${d.y+18}" text-anchor="middle" fill="${c}" font-size="5.5" font-family="monospace" opacity=".75">PP${String(patchIdx).padStart(2,'0')}</text>`
       : '';
-    return `<g class="rain-item" style="animation-delay:${(i*0.025).toFixed(2)}s">
+    return `<g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.025).toFixed(2)}s"`}>
       <circle cx="${d.x}" cy="${d.y}" r="${r}"
         fill="rgba(20,8,40,.85)" stroke="${c}" stroke-width="1.2"/>
       <circle cx="${d.x}" cy="${d.y}" r="1.8" fill="${c}" opacity=".9"/>
@@ -1856,12 +1856,12 @@ function overlayNetwork(floor) {
   return shell(floor, c, 'NETWORK DROPS', drops);
 }
 
-function overlayCameras(floor) {
+function overlayCameras(floor, settled = false) {
   const c = '#f05888';
   const cameras = floor.items.cameras.filter(cam => cam.x !== null && cam.x !== undefined);
   const cams = cameras.map((cam,i) => {
     const dir = cam.x < 490 ? 1 : -1;
-    return `<g class="rain-item" style="animation-delay:${(i*0.07).toFixed(2)}s">
+    return `<g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.07).toFixed(2)}s"`}>
       <polygon points="${cam.x},${cam.y-10} ${cam.x+dir*22},${cam.y-5} ${cam.x+dir*22},${cam.y+5} ${cam.x},${cam.y+10}"
         fill="rgba(40,8,20,.88)" stroke="${c}" stroke-width="1.3"/>
       <circle cx="${cam.x}" cy="${cam.y}" r="6" fill="rgba(240,88,136,.2)" stroke="${c}" stroke-width="1"/>
@@ -2082,21 +2082,18 @@ function render() {
   };
 
   for (const f of FILTERS) {
-    // Rebuild content
-    overlayEls[f.id].innerHTML = OVERLAY_BUILDERS[f.id](floor);
+    const isActive = S.filters.includes(f.id);
+    // If overlay was already visible, items are settled — don't re-animate
+    const wasOn = overlayEls[f.id].classList.contains('on');
+    const settled = wasOn && isActive;
 
-    // Badge
+    overlayEls[f.id].innerHTML = OVERLAY_BUILDERS[f.id](floor, settled);
+
     const badge = document.getElementById(`badge-${f.id}`);
     if (badge) badge.textContent = filterBadgeCounts[f.id];
 
-    // Active state
-    const isActive = S.filters.includes(f.id);
-    const showAll = S.editMode;
-    if (isActive || showAll) {
-      overlayEls[f.id].classList.add('on');
-    } else {
-      overlayEls[f.id].classList.remove('on');
-    }
+    // Filters always respect toggle state — even in edit mode
+    overlayEls[f.id].classList.toggle('on', isActive);
     filterBtnEls[f.id].classList.toggle('active', isActive);
   }
 
@@ -2217,11 +2214,11 @@ function bindEditLayer() {
     // (rebuilding destroys the SVG element that holds pointer capture)
     dragging.setAttribute('transform', `translate(${dx}, ${dy})`);
 
-    // Safe to rebuild the overlay layers (they don't have pointer capture)
-    overlayEls[dragType] && (overlayEls[dragType].innerHTML = OVERLAY_BUILDERS[dragType](floor));
+    // Rebuild overlays as settled (no rain re-animation) during drag
+    overlayEls[dragType] && (overlayEls[dragType].innerHTML = OVERLAY_BUILDERS[dragType](floor, true));
     if (dragType === 'desks') {
-      overlayEls['pcs'] && (overlayEls['pcs'].innerHTML = OVERLAY_BUILDERS['pcs'](floor));
-      overlayEls['phones'] && (overlayEls['phones'].innerHTML = OVERLAY_BUILDERS['phones'](floor));
+      overlayEls['pcs'] && (overlayEls['pcs'].innerHTML = OVERLAY_BUILDERS['pcs'](floor, true));
+      overlayEls['phones'] && (overlayEls['phones'].innerHTML = OVERLAY_BUILDERS['phones'](floor, true));
     }
   });
 
