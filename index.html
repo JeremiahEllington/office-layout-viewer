@@ -1232,6 +1232,66 @@ body {
 .rc-hash-missing {
   font-size: 9px; color: var(--text-muted); font-style: italic;
 }
+
+/* Camera live feed */
+.rc-live-badge {
+  float: right;
+  color: #f04040;
+  font-size: 7px;
+  letter-spacing: 1.5px;
+  animation: rc-blink 1.2s step-start infinite;
+}
+@keyframes rc-blink { 50% { opacity: 0; } }
+.rc-feed-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #000;
+  border: 1px solid rgba(0,200,255,0.25);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.rc-feed-img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+.rc-feed-img.rc-feed-err {
+  display: none;
+}
+.rc-feed-img.rc-feed-err + .rc-feed-scanlines::before {
+  content: 'NO SIGNAL';
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(0,200,255,0.3);
+  font-family: 'Courier New', monospace;
+  font-size: 9px; letter-spacing: 3px;
+}
+.rc-feed-nosignal {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(0,200,255,0.25);
+  font-family: 'Courier New', monospace;
+  font-size: 9px; letter-spacing: 3px;
+}
+.rc-feed-scanlines {
+  position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.25) 2px, rgba(0,0,0,0.25) 4px
+  );
+}
+.rc-feed-url {
+  width: 100%; box-sizing: border-box;
+  background: rgba(0,200,255,0.04);
+  border: 1px solid rgba(0,200,255,0.2);
+  color: rgba(200,240,255,0.7);
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+  padding: 5px 7px;
+  outline: none;
+  letter-spacing: 0.5px;
+}
+.rc-feed-url:focus { border-color: rgba(0,200,255,0.5); }
 </style>
 </head>
 
@@ -3432,6 +3492,7 @@ function showReportCard(type, id) {
   } else if (type === 'cameras') {
     title = item.name || 'Security Camera';
     subtitle = 'SECURITY CAMERA';
+    sections.push({ title: 'LIVE FEED', feed: item.id });
     sections.push({ title: 'DETAILS', rows: [
       ['IP Address', item.ip],
       ['Location', item.location],
@@ -3454,6 +3515,27 @@ function showReportCard(type, id) {
 
   // Build body HTML
   bodyEl.innerHTML = sections.map(sec => {
+    if (sec.feed !== undefined) {
+      const cam = floor.items.cameras.find(c => c.id === sec.feed);
+      const feedUrl = cam?.feedUrl || '';
+      return `<div class="rc-section">
+        <div class="rc-section-title">
+          ${sec.title}
+          ${feedUrl ? '<span class="rc-live-badge">● REC</span>' : ''}
+        </div>
+        <div class="rc-feed-wrap">
+          ${feedUrl
+            ? `<img class="rc-feed-img" src="${feedUrl}" alt="camera feed"
+                 onerror="this.classList.add('rc-feed-err')">`
+            : `<div class="rc-feed-nosignal">NO SIGNAL</div>`
+          }
+          <div class="rc-feed-scanlines"></div>
+        </div>
+        <input class="rc-feed-url" type="text" value="${feedUrl}"
+          placeholder="http://&lt;ip&gt;/video  or  /snapshot.jpg"
+          onchange="window.setCameraFeedUrl('${sec.feed}', this.value)">
+      </div>`;
+    }
     if (sec.hash !== undefined) {
       // Intune hash section
       return `<div class="rc-section">
@@ -3493,6 +3575,15 @@ function hideReportCard() {
     document.getElementById('report-card').classList.remove('visible');
   }, 200);
 }
+
+window.setCameraFeedUrl = function(id, url) {
+  const floor = S.floors[S.currentFloor];
+  const cam = floor.items.cameras.find(c => c.id === id);
+  if (!cam) return;
+  cam.feedUrl = url.trim();
+  saveState();
+  showReportCard('cameras', id);
+};
 
 window.copyHash = function copyHash(hash) {
   navigator.clipboard.writeText(hash).then(() => {
