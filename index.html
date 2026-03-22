@@ -2077,6 +2077,7 @@ function overlayDesks(floor, settled = false) {
   const desks = floor.items.desks.filter(d => d.x !== null && d.x !== undefined);
   return shell(floor, c, 'USER DESKS', desks.map((d, i) => `
     <g data-id="${d.id}" data-type="desks" class="ov-item ${settled ? '' : 'rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.04).toFixed(2)}s`}">
+      <rect x="${d.x-2}" y="${d.y-2}" width="${DW+4}" height="${DH+4}" rx="5" fill="transparent" pointer-events="all"/>
       <rect x="${d.x-2}" y="${d.y-2}" width="${DW+4}" height="${DH+4}" rx="5"
         fill="rgba(232,184,64,.12)" stroke="${c}" stroke-width="1.6"/>
       <text x="${d.x+DW/2}" y="${d.y+DH/2-3}" text-anchor="middle"
@@ -2094,6 +2095,7 @@ function overlayPCs(floor, settled = false) {
   const desks = floor.items.desks.filter(d => d.hasPC && d.x !== null && d.x !== undefined);
   return shell(floor, c, 'PCs / WORKSTATIONS', desks.map((d, i) => `
     <g data-id="${d.id}" data-type="pcs" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.04).toFixed(2)}s`}">
+      <rect x="${d.x+5}" y="${d.y+5}" width="32" height="28" rx="2" fill="transparent" pointer-events="all"/>
       <rect x="${d.x+5}" y="${d.y+5}" width="32" height="24" rx="2"
         fill="rgba(10,20,40,.88)" stroke="${c}" stroke-width="1.3"/>
       <rect x="${d.x+9}" y="${d.y+29}" width="24" height="3" rx="1" fill="${c}" opacity=".6"/>
@@ -2110,6 +2112,7 @@ function overlayPhones(floor, settled = false) {
   const desks = floor.items.desks.filter(d => d.hasPhone && d.x !== null && d.x !== undefined);
   return shell(floor, c, 'DESK PHONES', desks.map((d, i) => `
     <g data-id="${d.id}" data-type="phones" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.04).toFixed(2)}s`}">
+      <rect x="${d.x+54}" y="${d.y+5}" width="22" height="33" rx="5" fill="transparent" pointer-events="all"/>
       <rect x="${d.x+54}" y="${d.y+5}" width="22" height="33" rx="5"
         fill="rgba(10,30,20,.88)" stroke="${c}" stroke-width="1.3"/>
       <rect x="${d.x+57}" y="${d.y+29}" width="16" height="4" rx="2" fill="${c}" opacity=".4"/>
@@ -2126,6 +2129,7 @@ function overlayPrinters(floor, settled = false) {
   const printers = floor.items.printers.filter(p => p.x !== null && p.x !== undefined);
   return shell(floor, c, 'PRINTERS', printers.map((p, i) => `
     <g data-id="${p.id}" data-type="printers" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.08).toFixed(2)}s`}">
+      <rect x="${p.x-30}" y="${p.y-22}" width="60" height="44" rx="5" fill="transparent" pointer-events="all"/>
       <rect x="${p.x-30}" y="${p.y-22}" width="60" height="44" rx="5"
         fill="rgba(40,15,8,.88)" stroke="${c}" stroke-width="1.5"/>
       <rect x="${p.x-24}" y="${p.y-17}" width="48" height="8" rx="1" fill="${c}" opacity=".25"/>
@@ -2151,6 +2155,7 @@ function overlayNetwork(floor, settled = false) {
       ? `<text x="${d.x}" y="${d.y+18}" text-anchor="middle" fill="${c}" font-size="5.5" font-family="monospace" opacity=".75">PP${String(patchIdx).padStart(2,'0')}</text>`
       : '';
     return `<g data-id="${d.id}" data-type="network" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.025).toFixed(2)}s`}">
+      <circle cx="${d.x}" cy="${d.y}" r="${r+4}" fill="transparent" pointer-events="all"/>
       <circle cx="${d.x}" cy="${d.y}" r="${r}"
         fill="rgba(20,8,40,.85)" stroke="${c}" stroke-width="1.2"/>
       <circle cx="${d.x}" cy="${d.y}" r="1.8" fill="${c}" opacity=".9" pointer-events="none"/>
@@ -2166,6 +2171,7 @@ function overlayCameras(floor, settled = false) {
   const cams = cameras.map((cam,i) => {
     const dir = cam.x < 490 ? 1 : -1;
     return `<g data-id="${cam.id}" data-type="cameras" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.07).toFixed(2)}s`}">
+      <rect x="${cam.x + (dir > 0 ? -8 : -30)}" y="${cam.y-12}" width="38" height="24" fill="transparent" pointer-events="all"/>
       <polygon points="${cam.x},${cam.y-10} ${cam.x+dir*22},${cam.y-5} ${cam.x+dir*22},${cam.y+5} ${cam.x},${cam.y+10}"
         fill="rgba(40,8,20,.88)" stroke="${c}" stroke-width="1.3"/>
       <circle cx="${cam.x}" cy="${cam.y}" r="6" fill="rgba(240,88,136,.2)" stroke="${c}" stroke-width="1"/>
@@ -2324,6 +2330,7 @@ function overlayCustom(layer, floor, settled = false) {
 
   const content = items.map((item, i) => `
     <g data-id="${item.id}" data-type="${layer.id}" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.05).toFixed(2)}s`}">
+      <circle cx="${item.x}" cy="${item.y}" r="18" fill="transparent" pointer-events="all"/>
       <circle cx="${item.x}" cy="${item.y}" r="14"
         fill="rgba(0,0,0,.75)" stroke="${c}" stroke-width="1.5"/>
       <g transform="translate(${item.x-8},${item.y-8})" style="color:${c}" pointer-events="none">${iconSvg}</g>
@@ -2631,9 +2638,6 @@ function render() {
 
   // ── Staging dock ──
   renderStagingDock();
-
-  // ── Hover listeners ──
-  bindHoverListeners();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3458,22 +3462,23 @@ window.copyHash = function copyHash(hash) {
 };
 
 function bindHoverListeners() {
-  // Attach to all overlay containers (built-in + custom)
-  const allOverlayEls = [
-    ...Object.values(overlayEls),
-    ...Object.values(customOverlayEls)
-  ];
-  for (const ovEl of allOverlayEls) {
-    // Use event delegation — listen on the container, target .ov-item elements
-    ovEl.onmouseover = (e) => {
-      const g = e.target.closest('[data-id]');
-      if (!g) return;
-      // Keep card visible while hovering
-      clearTimeout(rcHideTimer);
-      showReportCard(g.dataset.type, g.dataset.id);
-    };
-    ovEl.onmouseleave = () => hideReportCard();
-  }
+  // Document-level delegation — works regardless of pointer-events on parent divs.
+  // Called once from init(), not on every render().
+  document.addEventListener('mouseover', (e) => {
+    const g = e.target.closest('.ov-item[data-id]');
+    if (!g) return;
+    clearTimeout(rcHideTimer);
+    showReportCard(g.dataset.type, g.dataset.id);
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    const g = e.target.closest('.ov-item[data-id]');
+    if (!g) return;
+    // Only hide when leaving the item entirely, not when moving between children
+    if (!g.contains(e.relatedTarget)) {
+      hideReportCard();
+    }
+  });
 
   // Keep report card visible when mouse enters it
   const rc = document.getElementById('report-card');
@@ -3492,6 +3497,7 @@ function init() {
   S = loadState() || defaultState();
   rebuildCustomOverlays();
   render();
+  bindHoverListeners();
   checkLsStatus();
 
   // New layer button
