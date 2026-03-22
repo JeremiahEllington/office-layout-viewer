@@ -1073,6 +1073,122 @@ body {
   from { transform: translateX(40px); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
 }
+
+/* ── Overlay item hover ──────────────────────── */
+.ov-item {
+  pointer-events: all;
+  cursor: pointer;
+}
+.ov-item:hover { filter: brightness(1.3) drop-shadow(0 0 6px currentColor); }
+
+/* ── Report Card ────────────────────────────── */
+#report-card {
+  position: fixed;
+  right: -340px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 300px;
+  background: rgba(4, 13, 30, 0.97);
+  border: 1px solid var(--cyan);
+  border-right: none;
+  border-radius: 12px 0 0 12px;
+  box-shadow: -4px 0 40px rgba(0,200,255,0.15), 0 0 0 1px rgba(0,200,255,0.05);
+  z-index: 300;
+  transition: right 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+  pointer-events: none;
+}
+#report-card.visible {
+  right: 0;
+  pointer-events: all;
+}
+#rc-header {
+  background: rgba(0,200,255,0.08);
+  border-bottom: 1px solid rgba(0,200,255,0.2);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#rc-type-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: rgba(0,200,255,0.1);
+  border: 1px solid rgba(0,200,255,0.3);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+#rc-type-icon svg { width: 18px; height: 18px; }
+#rc-title { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.2; }
+#rc-subtitle { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; margin-top: 1px; }
+#rc-body { padding: 12px 16px; overflow-y: auto; max-height: 70vh; }
+.rc-section {
+  margin-bottom: 14px;
+}
+.rc-section-title {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 7px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(0,200,255,0.12);
+}
+.rc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 0;
+}
+.rc-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.rc-value {
+  font-size: 10px;
+  color: var(--text);
+  text-align: right;
+  word-break: break-all;
+}
+.rc-value.mono { font-family: monospace; font-size: 9px; }
+.rc-value.empty { color: var(--text-muted); font-style: italic; }
+
+/* Intune hash row — full width, special treatment */
+.rc-hash-block {
+  background: rgba(0,200,255,0.04);
+  border: 1px solid rgba(0,200,255,0.15);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 4px;
+}
+.rc-hash-label {
+  font-size: 8px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--cyan); margin-bottom: 4px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.rc-hash-copy {
+  background: rgba(0,200,255,0.15);
+  border: 1px solid rgba(0,200,255,0.3);
+  border-radius: 4px; padding: 2px 8px;
+  color: var(--cyan); font-size: 9px; font-weight: 700;
+  cursor: pointer; letter-spacing: 1px;
+  transition: background .12s;
+}
+.rc-hash-copy:hover { background: rgba(0,200,255,0.3); }
+.rc-hash-value {
+  font-family: monospace; font-size: 8px; color: var(--text);
+  word-break: break-all; line-height: 1.5;
+  max-height: 60px; overflow: hidden;
+}
+.rc-hash-missing {
+  font-size: 9px; color: var(--text-muted); font-style: italic;
+}
 </style>
 </head>
 
@@ -1213,6 +1329,18 @@ body {
     </div>
     <div class="im-err" id="lm-err"></div>
   </div>
+</div>
+
+<!-- Report Card -->
+<div id="report-card">
+  <div id="rc-header">
+    <div id="rc-type-icon"></div>
+    <div>
+      <div id="rc-title"></div>
+      <div id="rc-subtitle"></div>
+    </div>
+  </div>
+  <div id="rc-body"></div>
 </div>
 
 <!-- Toast container -->
@@ -1538,25 +1666,40 @@ function mergeAssets(data) {
       (d.lsId && d.lsId === pc.lsId) || (d.pc && d.pc === pc.pc)
     );
     if (existing) {
-      existing.name       = pc.name;
-      existing.lsId       = pc.lsId;
-      existing.lsLastSeen = pc.lastSeen;
+      existing.name         = pc.name;
+      existing.lsId         = pc.lsId;
+      existing.lsLastSeen   = pc.lastSeen;
+      existing.os           = pc.os           || existing.os           || '';
+      existing.department   = pc.department   || existing.department   || '';
+      existing.location     = pc.location     || existing.location     || '';
+      existing.serialNumber = pc.serialNumber || existing.serialNumber || '';
+      existing.ram          = pc.ram          || existing.ram          || '';
+      existing.cpu          = pc.cpu          || existing.cpu          || '';
+      existing.hardwareHash = pc.hardwareHash ?? existing.hardwareHash ?? null;
+      existing.ip           = pc.ip           || existing.ip           || '';
+      existing.lastSeen     = pc.lastSeen     || existing.lastSeen;
       updated++;
     } else {
       const savedPos = positions[pc.lsId] || {};
       floor.items.desks.push({
-        id:         generateId(),
-        x:          savedPos.x !== undefined ? savedPos.x : null,
-        y:          savedPos.y !== undefined ? savedPos.y : null,
-        name:       pc.name,
-        pc:         pc.pc,
-        ext:        '',
-        hasPC:      true,
-        hasPhone:   false,
-        lsId:       pc.lsId,
-        lsLastSeen: pc.lastSeen,
-        location:   pc.location,
-        department: pc.department,
+        id:           generateId(),
+        x:            savedPos.x !== undefined ? savedPos.x : null,
+        y:            savedPos.y !== undefined ? savedPos.y : null,
+        name:         pc.name,
+        pc:           pc.pc,
+        ext:          '',
+        hasPC:        true,
+        hasPhone:     false,
+        lsId:         pc.lsId,
+        ip:           pc.ip,
+        os:           pc.os,
+        department:   pc.department,
+        location:     pc.location,
+        serialNumber: pc.serialNumber,
+        ram:          pc.ram,
+        cpu:          pc.cpu,
+        hardwareHash: pc.hardwareHash,
+        lastSeen:     pc.lastSeen,
       });
       added++;
     }
@@ -1921,10 +2064,10 @@ const DW = 82, DH = 50;
 function shell(floor, color, label, content) {
   const W = 980, H = floor.coordH || 660;
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" overflow="visible">
-  <rect width="${W}" height="${H}" fill="${color}" opacity=".055"/>
-  <rect width="${W}" height="5" fill="${color}" opacity=".75" rx="1"/>
+  <rect width="${W}" height="${H}" fill="${color}" opacity=".055" pointer-events="none"/>
+  <rect width="${W}" height="5" fill="${color}" opacity=".75" rx="1" pointer-events="none"/>
   <text x="${W-12}" y="20" text-anchor="end" fill="${color}" font-size="9.5" font-weight="700"
-    letter-spacing="2.5" font-family="'Segoe UI',sans-serif" opacity=".85">${label}</text>
+    letter-spacing="2.5" font-family="'Segoe UI',sans-serif" opacity=".85" pointer-events="none">${label}</text>
   ${content}
 </svg>`;
 }
@@ -1933,15 +2076,15 @@ function overlayDesks(floor, settled = false) {
   const c = '#e8b840';
   const desks = floor.items.desks.filter(d => d.x !== null && d.x !== undefined);
   return shell(floor, c, 'USER DESKS', desks.map((d, i) => `
-    <g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.04).toFixed(2)}s"`}>
+    <g data-id="${d.id}" data-type="desks" class="ov-item ${settled ? '' : 'rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.04).toFixed(2)}s`}">
       <rect x="${d.x-2}" y="${d.y-2}" width="${DW+4}" height="${DH+4}" rx="5"
         fill="rgba(232,184,64,.12)" stroke="${c}" stroke-width="1.6"/>
       <text x="${d.x+DW/2}" y="${d.y+DH/2-3}" text-anchor="middle"
         fill="${c}" font-size="8" font-weight="700" font-family="'Segoe UI',sans-serif"
-        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${d.name.split(' ')[0]}</text>
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))" pointer-events="none">${d.name.split(' ')[0]}</text>
       <text x="${d.x+DW/2}" y="${d.y+DH/2+8}" text-anchor="middle"
         fill="${c}" font-size="7.5" font-family="'Segoe UI',sans-serif" opacity=".8"
-        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${(d.name.split(' ')[1])||''}</text>
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))" pointer-events="none">${(d.name.split(' ')[1])||''}</text>
     </g>
   `).join(''));
 }
@@ -1950,14 +2093,14 @@ function overlayPCs(floor, settled = false) {
   const c = '#48a8f0';
   const desks = floor.items.desks.filter(d => d.hasPC && d.x !== null && d.x !== undefined);
   return shell(floor, c, 'PCs / WORKSTATIONS', desks.map((d, i) => `
-    <g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.04).toFixed(2)}s"`}>
+    <g data-id="${d.id}" data-type="pcs" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.04).toFixed(2)}s`}">
       <rect x="${d.x+5}" y="${d.y+5}" width="32" height="24" rx="2"
         fill="rgba(10,20,40,.88)" stroke="${c}" stroke-width="1.3"/>
       <rect x="${d.x+9}" y="${d.y+29}" width="24" height="3" rx="1" fill="${c}" opacity=".6"/>
       <circle cx="${d.x+21}" cy="${d.y+17}" r="2.5" fill="${c}" opacity=".9"/>
       <text x="${d.x+DW/2+4}" y="${d.y+DH-5}" text-anchor="middle"
         fill="${c}" font-size="7" font-weight="700" font-family="monospace"
-        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${d.pc}</text>
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))" pointer-events="none">${d.pc}</text>
     </g>
   `).join(''));
 }
@@ -1966,14 +2109,14 @@ function overlayPhones(floor, settled = false) {
   const c = '#50d890';
   const desks = floor.items.desks.filter(d => d.hasPhone && d.x !== null && d.x !== undefined);
   return shell(floor, c, 'DESK PHONES', desks.map((d, i) => `
-    <g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.04).toFixed(2)}s"`}>
+    <g data-id="${d.id}" data-type="phones" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.04).toFixed(2)}s`}">
       <rect x="${d.x+54}" y="${d.y+5}" width="22" height="33" rx="5"
         fill="rgba(10,30,20,.88)" stroke="${c}" stroke-width="1.3"/>
       <rect x="${d.x+57}" y="${d.y+29}" width="16" height="4" rx="2" fill="${c}" opacity=".4"/>
       <circle cx="${d.x+65}" cy="${d.y+15}" r="2.5" fill="${c}" opacity=".9"/>
       <text x="${d.x+DW/2+4}" y="${d.y+DH-5}" text-anchor="middle"
         fill="${c}" font-size="7" font-weight="700" font-family="monospace"
-        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">x${d.ext}</text>
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))" pointer-events="none">x${d.ext}</text>
     </g>
   `).join(''));
 }
@@ -1982,17 +2125,17 @@ function overlayPrinters(floor, settled = false) {
   const c = '#f07850';
   const printers = floor.items.printers.filter(p => p.x !== null && p.x !== undefined);
   return shell(floor, c, 'PRINTERS', printers.map((p, i) => `
-    <g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.08).toFixed(2)}s"`}>
+    <g data-id="${p.id}" data-type="printers" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.08).toFixed(2)}s`}">
       <rect x="${p.x-30}" y="${p.y-22}" width="60" height="44" rx="5"
         fill="rgba(40,15,8,.88)" stroke="${c}" stroke-width="1.5"/>
       <rect x="${p.x-24}" y="${p.y-17}" width="48" height="8" rx="1" fill="${c}" opacity=".25"/>
       <rect x="${p.x-18}" y="${p.y-4}" width="36" height="16" rx="2" fill="${c}" opacity=".12" stroke="${c}" stroke-width=".8"/>
       <text x="${p.x}" y="${p.y+7}" text-anchor="middle"
         fill="${c}" font-size="8.5" font-weight="700" font-family="'Segoe UI',sans-serif"
-        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${p.label}</text>
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))" pointer-events="none">${p.label}</text>
       <text x="${p.x}" y="${p.y+18}" text-anchor="middle"
         fill="${c}" font-size="6.5" font-family="'Segoe UI',sans-serif" opacity=".7"
-        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${p.model||''}</text>
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))" pointer-events="none">${p.model||''}</text>
     </g>
   `).join(''));
 }
@@ -2007,10 +2150,10 @@ function overlayNetwork(floor, settled = false) {
     const label = d.t === 'patch'
       ? `<text x="${d.x}" y="${d.y+18}" text-anchor="middle" fill="${c}" font-size="5.5" font-family="monospace" opacity=".75">PP${String(patchIdx).padStart(2,'0')}</text>`
       : '';
-    return `<g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.025).toFixed(2)}s"`}>
+    return `<g data-id="${d.id}" data-type="network" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.025).toFixed(2)}s`}">
       <circle cx="${d.x}" cy="${d.y}" r="${r}"
         fill="rgba(20,8,40,.85)" stroke="${c}" stroke-width="1.2"/>
-      <circle cx="${d.x}" cy="${d.y}" r="1.8" fill="${c}" opacity=".9"/>
+      <circle cx="${d.x}" cy="${d.y}" r="1.8" fill="${c}" opacity=".9" pointer-events="none"/>
       ${label}
     </g>`;
   }).join('');
@@ -2022,15 +2165,15 @@ function overlayCameras(floor, settled = false) {
   const cameras = floor.items.cameras.filter(cam => cam.x !== null && cam.x !== undefined);
   const cams = cameras.map((cam,i) => {
     const dir = cam.x < 490 ? 1 : -1;
-    return `<g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.07).toFixed(2)}s"`}>
+    return `<g data-id="${cam.id}" data-type="cameras" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.07).toFixed(2)}s`}">
       <polygon points="${cam.x},${cam.y-10} ${cam.x+dir*22},${cam.y-5} ${cam.x+dir*22},${cam.y+5} ${cam.x},${cam.y+10}"
         fill="rgba(40,8,20,.88)" stroke="${c}" stroke-width="1.3"/>
       <circle cx="${cam.x}" cy="${cam.y}" r="6" fill="rgba(240,88,136,.2)" stroke="${c}" stroke-width="1"/>
-      <circle cx="${cam.x}" cy="${cam.y}" r="2.5" fill="${c}"/>
-      <circle cx="${cam.x}" cy="${cam.y}" r="4.5" fill="none" stroke="${c}" stroke-width=".7" opacity=".5"/>
+      <circle cx="${cam.x}" cy="${cam.y}" r="2.5" fill="${c}" pointer-events="none"/>
+      <circle cx="${cam.x}" cy="${cam.y}" r="4.5" fill="none" stroke="${c}" stroke-width=".7" opacity=".5" pointer-events="none"/>
       <text x="${cam.x+dir*30}" y="${cam.y+4}" text-anchor="${dir>0?'start':'end'}"
         fill="${c}" font-size="7.5" font-weight="700" font-family="monospace"
-        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">CAM-${String(i+1).padStart(2,'0')}</text>
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))" pointer-events="none">CAM-${String(i+1).padStart(2,'0')}</text>
     </g>`;
   }).join('');
   return shell(floor, c, 'SECURITY CAMERAS', cams);
@@ -2180,13 +2323,13 @@ function overlayCustom(layer, floor, settled = false) {
   const iconSvg = CUSTOM_ICONS[layer.icon] || CUSTOM_ICONS.dot;
 
   const content = items.map((item, i) => `
-    <g ${settled ? '' : `class="rain-item" style="animation-delay:${(i*0.05).toFixed(2)}s"`}>
+    <g data-id="${item.id}" data-type="${layer.id}" class="ov-item${settled ? '' : ' rain-item'}" style="${settled ? '' : `animation-delay:${(i*0.05).toFixed(2)}s`}">
       <circle cx="${item.x}" cy="${item.y}" r="14"
         fill="rgba(0,0,0,.75)" stroke="${c}" stroke-width="1.5"/>
-      <g transform="translate(${item.x-8},${item.y-8})" style="color:${c}">${iconSvg}</g>
+      <g transform="translate(${item.x-8},${item.y-8})" style="color:${c}" pointer-events="none">${iconSvg}</g>
       <text x="${item.x}" y="${item.y+26}" text-anchor="middle"
         fill="${c}" font-size="7" font-weight="700" font-family="'Segoe UI',sans-serif"
-        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))">${item.name||''}</text>
+        filter="drop-shadow(0 1px 2px rgba(0,0,0,.9))" pointer-events="none">${item.name||''}</text>
     </g>
   `).join('');
 
@@ -2488,6 +2631,9 @@ function render() {
 
   // ── Staging dock ──
   renderStagingDock();
+
+  // ── Hover listeners ──
+  bindHoverListeners();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3129,6 +3275,213 @@ document.addEventListener('keydown', (e) => {
 document.getElementById('import-modal').addEventListener('click', (e) => {
   if (e.target === document.getElementById('import-modal')) closeImportModal();
 });
+
+// ═══════════════════════════════════════════════════════
+// REPORT CARD
+// ═══════════════════════════════════════════════════════
+
+let rcHideTimer = null;
+
+function showReportCard(type, id) {
+  clearTimeout(rcHideTimer);
+  const floor = S.floors[S.currentFloor];
+
+  // Find item
+  let item = null;
+  let layerDef = null;
+  if (floor.items[type]) {
+    item = floor.items[type].find(x => x.id === id);
+  }
+  // Check custom layers
+  if (!item) {
+    layerDef = S.customLayers.find(l => l.id === type);
+    if (layerDef && floor.items[type]) {
+      item = floor.items[type].find(x => x.id === id);
+    }
+  }
+  if (!item) return;
+
+  const rc = document.getElementById('report-card');
+  const iconEl = document.getElementById('rc-type-icon');
+  const titleEl = document.getElementById('rc-title');
+  const subtitleEl = document.getElementById('rc-subtitle');
+  const bodyEl = document.getElementById('rc-body');
+
+  // Determine filter definition
+  const filterDef = FILTERS.find(f => f.id === type);
+  const color = layerDef?.color || filterDef?.color || '#00c8ff';
+  const icon = layerDef ? (CUSTOM_ICONS[layerDef.icon] || CUSTOM_ICONS.dot) : (filterDef?.icon || '');
+
+  iconEl.style.borderColor = `${color}44`;
+  iconEl.style.background = `${color}18`;
+  iconEl.style.color = color;
+  iconEl.innerHTML = icon;
+
+  // Build content based on type
+  let title = '', subtitle = '', sections = [];
+
+  if (type === 'desks') {
+    title = item.name || 'Unknown User';
+    subtitle = 'USER DESK';
+    if (item.pc || item.ip) sections.push({ title: 'WORKSTATION', rows: [
+      ['Asset Tag', item.pc],
+      ['IP Address', item.ip],
+      ['Operating System', item.os],
+      ['CPU', item.cpu],
+      ['RAM', item.ram],
+      ['Serial Number', item.serialNumber],
+      ['Department', item.department],
+      ['Location', item.location],
+      ['Last Seen', item.lastSeen ? new Date(item.lastSeen).toLocaleDateString() : null],
+    ]});
+    sections.push({ title: 'CONTACT', rows: [
+      ['Extension', item.ext || null],
+      ['Has Phone', item.hasPhone ? 'Yes' : 'No'],
+    ]});
+    sections.push({ title: 'INTUNE / AUTOPILOT', hash: item.hardwareHash });
+  } else if (type === 'pcs') {
+    title = item.pc || item.name || 'Unknown PC';
+    subtitle = 'WORKSTATION';
+    sections.push({ title: 'IDENTITY', rows: [
+      ['User', item.name],
+      ['Asset Tag', item.pc],
+      ['IP Address', item.ip],
+    ]});
+    sections.push({ title: 'HARDWARE', rows: [
+      ['OS', item.os],
+      ['CPU', item.cpu],
+      ['RAM', item.ram],
+      ['Serial', item.serialNumber],
+    ]});
+    sections.push({ title: 'INTUNE / AUTOPILOT', hash: item.hardwareHash });
+  } else if (type === 'phones') {
+    title = item.name || 'Desk Phone';
+    subtitle = 'DESK PHONE';
+    sections.push({ title: 'DETAILS', rows: [
+      ['Extension', item.ext],
+      ['IP Address', item.ip],
+      ['Last Seen', item.lastSeen ? new Date(item.lastSeen).toLocaleDateString() : null],
+    ]});
+  } else if (type === 'printers') {
+    title = item.label || 'Printer';
+    subtitle = 'PRINTER';
+    sections.push({ title: 'DETAILS', rows: [
+      ['Model', item.model],
+      ['IP Address', item.ip],
+      ['Location', item.location],
+      ['Last Seen', item.lastSeen ? new Date(item.lastSeen).toLocaleDateString() : null],
+    ]});
+  } else if (type === 'network') {
+    title = `Network Drop`;
+    subtitle = (item.t || 'FLOOR').toUpperCase() + ' DROP';
+    sections.push({ title: 'DETAILS', rows: [
+      ['Type', item.t],
+      ['IP', item.ip || null],
+    ]});
+  } else if (type === 'cameras') {
+    title = item.name || 'Security Camera';
+    subtitle = 'SECURITY CAMERA';
+    sections.push({ title: 'DETAILS', rows: [
+      ['IP Address', item.ip],
+      ['Location', item.location],
+      ['Last Seen', item.lastSeen ? new Date(item.lastSeen).toLocaleDateString() : null],
+    ]});
+  } else if (layerDef) {
+    title = item.name || layerDef.name;
+    subtitle = layerDef.name.toUpperCase();
+    sections.push({ title: 'ASSET INFO', rows: [
+      ['Name', item.name],
+      ['IP Address', item.ip],
+      ['Type', item.rawType],
+      ['Location', item.location],
+      ['Last Seen', item.lastSeen ? new Date(item.lastSeen).toLocaleDateString() : null],
+    ]});
+  }
+
+  titleEl.textContent = title;
+  subtitleEl.textContent = subtitle;
+
+  // Build body HTML
+  bodyEl.innerHTML = sections.map(sec => {
+    if (sec.hash !== undefined) {
+      // Intune hash section
+      return `<div class="rc-section">
+        <div class="rc-section-title">${sec.title}</div>
+        ${sec.hash
+          ? `<div class="rc-hash-block">
+              <div class="rc-hash-label">
+                HARDWARE HASH
+                <button class="rc-hash-copy" onclick="copyHash('${sec.hash}')">COPY</button>
+              </div>
+              <div class="rc-hash-value">${sec.hash.substring(0, 120)}${sec.hash.length > 120 ? '…' : ''}</div>
+            </div>`
+          : `<div class="rc-hash-block">
+              <div class="rc-hash-label">HARDWARE HASH</div>
+              <div class="rc-hash-missing">Not collected — configure Lansweeper WMI scan for MDM_DevDetail_Ext01</div>
+            </div>`
+        }
+      </div>`;
+    }
+    const rows = (sec.rows || []).filter(([, v]) => v);
+    if (!rows.length) return '';
+    return `<div class="rc-section">
+      <div class="rc-section-title">${sec.title}</div>
+      ${rows.map(([label, value]) => `
+        <div class="rc-row">
+          <span class="rc-label">${label}</span>
+          <span class="rc-value${typeof value === 'string' && value.includes('.') && value.length > 15 ? ' mono' : ''}">${value}</span>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+
+  rc.classList.add('visible');
+}
+
+function hideReportCard() {
+  rcHideTimer = setTimeout(() => {
+    document.getElementById('report-card').classList.remove('visible');
+  }, 200);
+}
+
+window.copyHash = function copyHash(hash) {
+  navigator.clipboard.writeText(hash).then(() => {
+    toast('Hardware hash copied to clipboard', 'success');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = hash;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    toast('Hardware hash copied to clipboard', 'success');
+  });
+};
+
+function bindHoverListeners() {
+  // Attach to all overlay containers (built-in + custom)
+  const allOverlayEls = [
+    ...Object.values(overlayEls),
+    ...Object.values(customOverlayEls)
+  ];
+  for (const ovEl of allOverlayEls) {
+    // Use event delegation — listen on the container, target .ov-item elements
+    ovEl.onmouseover = (e) => {
+      const g = e.target.closest('[data-id]');
+      if (!g) return;
+      // Keep card visible while hovering
+      clearTimeout(rcHideTimer);
+      showReportCard(g.dataset.type, g.dataset.id);
+    };
+    ovEl.onmouseleave = () => hideReportCard();
+  }
+
+  // Keep report card visible when mouse enters it
+  const rc = document.getElementById('report-card');
+  if (rc) {
+    rc.onmouseenter = () => clearTimeout(rcHideTimer);
+    rc.onmouseleave = () => hideReportCard();
+  }
+}
 
 // ═══════════════════════════════════════════════════════
 // BOOTSTRAP

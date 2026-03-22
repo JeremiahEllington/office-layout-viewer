@@ -65,6 +65,15 @@ function buildQuery(siteId) {
               contact
               serialNumber
             }
+            operatingSystem {
+              caption
+            }
+            memory {
+              totalPhysical
+            }
+            cpu {
+              name
+            }
             users(filters: { loginEvent: "LastLogin" }) {
               username
             }
@@ -76,6 +85,11 @@ function buildQuery(siteId) {
 }
 
 // ─── Asset mapping ────────────────────────────────────────────────────────────
+
+function formatRam(bytes) {
+  const gb = Math.round(bytes / 1073741824);
+  return gb > 0 ? `${gb} GB` : `${Math.round(bytes / 1048576)} MB`;
+}
 
 function formatUsername(raw) {
   if (!raw) return '';
@@ -91,13 +105,18 @@ function mapAsset(item, tm) {
   const location    = item.assetCustom?.location      || '';
   const department  = item.assetCustom?.department    || '';
   const contact     = item.assetCustom?.contact       || '';
+  const serialNumber = item.assetCustom?.serialNumber || '';
   const description = item.assetBasicInfo.description || '';
   const lastUser    = item.users?.[0]?.username       || '';
   const lastSeen    = item.assetBasicInfo.lastSeen;
   const lsId        = item.assetId;
   const displayName = formatUsername(lastUser || contact) || name;
+  const os          = item.operatingSystem?.caption   || '';
+  const ram         = item.memory?.totalPhysical ? formatRam(item.memory.totalPhysical) : '';
+  const cpu         = item.cpu?.name                  || '';
+  const hardwareHash = item.assetCustom?.[config.lansweeper?.hardwareHashField] || null;
 
-  return { mappedType, lsId, name, displayName, ip, location, department, description, lastUser, lastSeen, rawType };
+  return { mappedType, lsId, name, displayName, ip, location, department, serialNumber, description, lastUser, lastSeen, rawType, os, ram, cpu, hardwareHash };
 }
 
 // ─── Paginated fetch ──────────────────────────────────────────────────────────
@@ -195,14 +214,19 @@ async function runSync() {
     const a = mapAsset(item, tm);
     if (a.mappedType === 'pc') {
       pcs.push({
-        lsId:       a.lsId,
-        name:       a.displayName,
-        pc:         a.name,
-        ip:         a.ip,
-        location:   a.location,
-        department: a.department,
-        lastSeen:   a.lastSeen,
-        rawType:    a.rawType,
+        lsId:         a.lsId,
+        name:         a.displayName,
+        pc:           a.name,
+        ip:           a.ip,
+        location:     a.location,
+        department:   a.department,
+        serialNumber: a.serialNumber,
+        lastSeen:     a.lastSeen,
+        rawType:      a.rawType,
+        os:           a.os,
+        ram:          a.ram,
+        cpu:          a.cpu,
+        hardwareHash: a.hardwareHash,
       });
     } else if (a.mappedType === 'printer') {
       printers.push({

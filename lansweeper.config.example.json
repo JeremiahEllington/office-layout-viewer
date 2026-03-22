@@ -3,7 +3,9 @@
   "lansweeper": {
     "apiUrl": "https://api.lansweeper.com/api/v2/graphql",
     "token": "YOUR_PERSONAL_ACCESS_TOKEN_HERE",
-    "siteId": "YOUR_SITE_ID_HERE"
+    "siteId": "YOUR_SITE_ID_HERE",
+    "hardwareHashField": null,
+    "_hardwareHashFieldNote": "Set to the Lansweeper custom field name that stores the Intune Autopilot hardware hash (collected via WMI MDM_DevDetail_Ext01.DeviceHardwareData). Leave null if not collected."
   },
   "sync": {
     "pageSize": 200,
