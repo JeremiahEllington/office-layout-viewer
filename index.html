@@ -1083,9 +1083,7 @@ body {
 
 /* ── Report Card ────────────────────────────── */
 #report-card {
-  position: fixed;
-  right: -460px;
-  top: 22%;
+  /* visual card — just styling + matching tilt */
   width: 360px;
   background: rgba(4, 13, 30, 0.97);
   border: 1px solid rgba(0,200,255,0.35);
@@ -1094,14 +1092,22 @@ body {
     0 0 0 1px rgba(0,200,255,0.08),
     0 0 50px rgba(0,200,255,0.18),
     0 50px 140px rgba(0,0,0,0.95);
-  z-index: 300;
-  transform-origin: center top;
-  transform: perspective(1800px) rotateX(40deg);
-  transition: right 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   overflow: hidden;
+  transform-origin: center top;
+  transform: rotateX(40deg);
+}
+/* Perspective wrapper — matches #persp exactly so card sits on same plane as map */
+#rc-persp {
+  position: fixed;
+  right: -460px;
+  top: 22%;
+  z-index: 300;
+  perspective: 1800px;
+  perspective-origin: 50% -10%;
+  transition: right 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
-#report-card.visible {
+#rc-persp.visible {
   right: 24px;
   pointer-events: all;
 }
@@ -1334,16 +1340,18 @@ body {
   </div>
 </div>
 
-<!-- Report Card -->
-<div id="report-card">
-  <div id="rc-header">
-    <div id="rc-type-icon"></div>
-    <div>
-      <div id="rc-title"></div>
-      <div id="rc-subtitle"></div>
+<!-- Report Card — outer wrapper provides perspective matching the map -->
+<div id="rc-persp">
+  <div id="report-card">
+    <div id="rc-header">
+      <div id="rc-type-icon"></div>
+      <div>
+        <div id="rc-title"></div>
+        <div id="rc-subtitle"></div>
+      </div>
     </div>
+    <div id="rc-body"></div>
   </div>
-  <div id="rc-body"></div>
 </div>
 
 <!-- Toast container -->
@@ -3312,7 +3320,7 @@ function showReportCard(type, id) {
   }
   if (!item) return;
 
-  const rc = document.getElementById('report-card');
+  const rc = document.getElementById('rc-persp');
   const iconEl = document.getElementById('rc-type-icon');
   const titleEl = document.getElementById('rc-title');
   const subtitleEl = document.getElementById('rc-subtitle');
@@ -3450,7 +3458,7 @@ function showReportCard(type, id) {
 
 function hideReportCard() {
   rcHideTimer = setTimeout(() => {
-    document.getElementById('report-card').classList.remove('visible');
+    document.getElementById('rc-persp').classList.remove('visible');
   }, 200);
 }
 
@@ -3507,7 +3515,7 @@ function bindHoverListeners() {
     });
   });
 
-  const rc = document.getElementById('report-card');
+  const rc = document.getElementById('rc-persp');
   if (rc) {
     rc.onmouseenter = () => clearTimeout(rcHideTimer);
     rc.onmouseleave = () => hideReportCard();
